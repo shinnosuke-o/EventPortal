@@ -17,3 +17,4 @@ function authAll() {
   // Form / Spreadsheet も触っておく（念のため）
   FormApp.getActiveForm(); // なくてもOK（失敗しても承認画面は出ることが多い）
 }
+// テスト
