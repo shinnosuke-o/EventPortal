@@ -767,7 +767,7 @@ ${atStr} 時点
       return;
     }
 
-    setStatus('ヘッダを取得中...', true);
+    setStatus('列のヘッダを取得中...', true);
 
     const res = await callWithTimeout('api_getSheetHeadersRow1', { sheetName }, 15000, 'ヘッダ取得');
     if(!res || !res.ok) throw new Error(res?.message || 'ヘッダ取得に失敗しました');
@@ -920,7 +920,7 @@ ${atStr} 時点
   // Wire events
   // =====================
   dom.eventSel.onchange = async ()=>{
-    App.busy?.show('ヘッダを取得中...\nしばらくお待ちください。', { title: '取得中...' });
+    App.busy?.show('列のヘッダを取得しています。\nしばらくお待ちください。', { title: '取得中...' });
     try{
       await loadHeadersForSelectedEvent();
     }catch(e){

@@ -138,7 +138,7 @@ ${d.publicUrl || ''}
 
       setStatus('案内文を作成中...', true);
 
-      App.busy?.show('案内文を作成中...\nしばらくお待ちください。', { title: '作成中...' });
+      App.busy?.show('案内文を作成しています。\nしばらくお待ちください。', { title: '作成中...' });
 
       try{
         const res = await callServer('api_getGuideEvent', { eventName: name });
