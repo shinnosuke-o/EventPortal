@@ -790,7 +790,10 @@ window.accountingInit = function accountingInit(){
       return App.modal?.warn(`「${fromStatus}」以外が含まれています。対象を見直してください。`);
     }
 
-    const ok = await App.modal?.confirm(`${selectedRows.length}件を「${toStatus}」に変更します。よろしいですか？`);
+    const ok = await App.modal?.confirm(`${selectedRows.length}件を「${toStatus}」に変更します。よろしいですか？`,{
+      okText: 'はい',
+      cancelText: 'いいえ'
+    });
     if(!ok) return;
 
     showBusy();
