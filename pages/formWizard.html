@@ -59,14 +59,19 @@
 </section>
 
 <section class="card">
-  <h2>フォーム内容（最大20行）</h2>
+  <h2>フォーム内容</h2>
   <p>「質問内容」「質問タイプ」は入力がある行のみ必須扱いです（空行は無視）。</p>
 
-  <!-- テンプレボタン：表の上 -->
+  <!-- 上部：テンプレ + 右上操作 -->
   <div class="btn-row" style="margin: 8px 0 12px; align-items:center; gap:10px;">
     <button class="btn" id="fw_templateBtn" type="button">質問テンプレを入力</button>
-  </div>
+    <div style="flex:1 1 auto;"></div>
 
+    <!-- 行順操作（右上） -->
+    <button class="btn secondary" id="fw_moveUp" type="button" disabled title="選択行を上へ">↑</button>
+    <button class="btn secondary" id="fw_moveDown" type="button" disabled title="選択行を下へ">↓</button>
+    <button class="btn secondary" id="fw_deleteRow" type="button" disabled title="選択行を削除">削除</button>
+  </div>
 
   <div style="overflow:auto; border:1px solid var(--line); border-radius:14px;">
     <table style="width:100%; border-collapse:collapse; min-width:980px;">
@@ -86,6 +91,12 @@
       </thead>
       <tbody id="q_tbody"></tbody>
     </table>
+  </div>
+
+  <!-- 左下：＋ で行追加 -->
+  <div class="btn-row" style="margin-top:10px; align-items:flex-end;">
+    <button id="fw_addRow" class="btn secondary" type="button" title="行を追加">＋</button>
+    <div style="flex:1 1 auto;"></div>
   </div>
 
   <div class="btn-row" style="margin-top:20px; flex-direction:column; align-items:center; gap:10px;">
@@ -128,7 +139,6 @@
 <script>
   window.formWizardInit = function formWizardInit(){
     const App = window.App || {};
-    // ===== DOM取得（毎回取り直す：SPAで差し替えられるため） =====
     const $ = (sel)=>document.querySelector(sel);
 
     const statusEl = $('#createStatus');
@@ -139,6 +149,11 @@
     const btnCreate = $('#fw_createBtn');
     const btnCopyEdit = $('#fw_copyEditBtn');
     const btnCopyPub = $('#fw_copyPubBtn');
+
+    const btnAddRow = $('#fw_addRow');
+    const btnUp = $('#fw_moveUp');
+    const btnDown = $('#fw_moveDown');
+    const btnDel = $('#fw_deleteRow');
 
     const basic = {
       eventName: $('#b_eventName'),
@@ -158,17 +173,44 @@
       pubHidden: $('#r_publishedUrl'),
     };
 
-    // 必須DOMが無いなら何もしない
-    if(!statusEl || !tbody || !btnTemplate || !btnCreate) return;
+    if(!statusEl || !tbody || !btnTemplate || !btnCreate || !btnAddRow || !btnUp || !btnDown || !btnDel) return;
 
-    // ===== 多重初期化防止（このページのルートにフラグ）=====
-    // 注：page内に id を一つ増やすのが理想だが、無いので createStatus を基準にする
+    // 多重初期化防止
     if (statusEl.dataset.inited === '1') return;
     statusEl.dataset.inited = '1';
+
+    // callServer check
+    if (typeof callServer !== 'function') {
+      statusEl.textContent = 'エラー：callServer が見つかりません（script.jsを確認してください）';
+      return;
+    }
+
+    // ===== style（入力不可を分かりやすく）=====
+    if(!document.getElementById('fw_style_v1')){
+      const st = document.createElement('style');
+      st.id = 'fw_style_v1';
+      st.textContent = `
+        #q_tbody tr.is-selected{
+          background: rgba(78,161,255,.08) !important;
+          outline: 2px solid rgba(78,161,255,.35);
+          outline-offset: -2px;
+        }
+        #q_tbody input:disabled, #q_tbody select:disabled, #q_tbody textarea:disabled{
+          opacity: .55;
+          background: rgba(255,255,255,.04);
+          cursor: not-allowed;
+        }
+        #q_tbody td.is-disabled{
+          background: rgba(255,255,255,.02);
+        }
+      `;
+      document.head.appendChild(st);
+    }
 
     // ===== 定数 =====
     const QUESTION_ROWS_MAX = 20;
     const TYPE_OPTIONS = ['記述式（短文）','段落','ラジオボタン','チェックボックス','プルダウン','日付','時刻'];
+    const CHOICE_TYPES = new Set(['ラジオボタン','チェックボックス','プルダウン']);
 
     const TEMPLATE_ROWS = [
       { title:'イベント参加条件を確認してください。', type:'チェックボックス', required:true, help:'', opt1:'確認した' },
@@ -180,12 +222,6 @@
       { title:'【未定の方へ】\nいつ頃分かりますか', type:'記述式（短文）', required:false, help:'' },
       { title:'その他何かあればご記入ください', type:'記述式（短文）', required:false, help:'' }
     ];
-
-    // ===== callServer 存在チェック =====
-    if (typeof callServer !== 'function') {
-      statusEl.textContent = 'エラー：callServer が見つかりません（script.jsを確認してください）';
-      return;
-    }
 
     // ===== UIヘルパ =====
     function setStatus(text, busy){
@@ -200,86 +236,20 @@
       if (App.busy) return App.busy.hide();
     }
 
-    // ===== 表UI =====
-    function renderQuestionRows(){
-      tbody.innerHTML = '';
-      for(let i=1;i<=QUESTION_ROWS_MAX;i++){
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td style="padding:8px; border-bottom:1px solid var(--line); color:var(--muted);">${i}</td>
-          <td style="padding:8px; border-bottom:1px solid var(--line);">
-            <input data-k="title" data-i="${i}" placeholder="質問内容" style="width:260px;">
-          </td>
-          <td style="padding:8px; border-bottom:1px solid var(--line);">
-            <select data-k="type" data-i="${i}" style="width:180px;">
-              <option value=""></option>
-              ${TYPE_OPTIONS.map(t=>`<option value="${t}">${t}</option>`).join('')}
-            </select>
-          </td>
-          <td style="padding:8px; border-bottom:1px solid var(--line); text-align:center;">
-            <input
-              type="checkbox"
-              data-k="required"
-              data-i="${i}"
-              style="transform:scale(1.2)"
-              title="必須にする"
-            >
-          </td>
-          <td style="padding:8px; border-bottom:1px solid var(--line);">
-            <input data-k="help" data-i="${i}" placeholder="説明" style="width:220px;">
-          </td>
-          ${[1,2,3,4,5].map(n=>`
-            <td style="padding:8px; border-bottom:1px solid var(--line);">
-              <input data-k="opt${n}" data-i="${i}" placeholder="選択肢${n}" style="width:170px;">
-            </td>
-          `).join('')}
-        `;
-        tbody.appendChild(tr);
-      }
+    // ===== state（行はデフォルト1行）=====
+    function blankRow(){
+      return {
+        title:'', type:'', required:false, help:'',
+        opt1:'', opt2:'', opt3:'', opt4:'', opt5:''
+      };
     }
 
-    function qGet(i,k){
-      const n = document.querySelector(`[data-k="${k}"][data-i="${i}"]`);
-      return n ? n.value : '';
-    }
-    function qSet(i,k,v){
-      const n = document.querySelector(`[data-k="${k}"][data-i="${i}"]`);
-      if(n) n.value = v ?? '';
-    }
-    function setRow(i,row){
-      qSet(i,'title',row.title);
-      qSet(i,'type',row.type);
-      const req = document.querySelector(`[data-k="required"][data-i="${i}"]`);
-      if (req) req.checked = !!row.required;
-      qSet(i,'help',row.help || '');
-      qSet(i,'opt1',row.opt1 || '');
-      qSet(i,'opt2',row.opt2 || '');
-      qSet(i,'opt3',row.opt3 || '');
-      qSet(i,'opt4',row.opt4 || '');
-      qSet(i,'opt5',row.opt5 || '');
-    }
-    function getRows(){
-      const rows = [];
-      for(let i=1;i<=QUESTION_ROWS_MAX;i++){
-        rows.push({
-          title: qGet(i,'title'),
-          type: qGet(i,'type'),
-          required: (() => {
-            const el = document.querySelector(`[data-k="required"][data-i="${i}"]`);
-            return !!el?.checked;
-          })(),
-          help: qGet(i,'help'),
-          opt1: qGet(i,'opt1'),
-          opt2: qGet(i,'opt2'),
-          opt3: qGet(i,'opt3'),
-          opt4: qGet(i,'opt4'),
-          opt5: qGet(i,'opt5'),
-        });
-      }
-      return rows;
-    }
+    const state = {
+      rows: [ blankRow() ],
+      selectedIndex: 0,
+    };
 
-    // ===== 入力補助（blur）=====
+    // ===== 入力補助（basic）=====
     function showFieldWarn(inputEl, msg){
       const id = inputEl.id + '_warn';
       let w = document.getElementById(id);
@@ -310,7 +280,6 @@
 
       if(!e || !fromEl || !toEl || !deadlineEl) return;
 
-      // 初期：Toは入力不可
       toEl.disabled = true;
 
       e.onblur = () => {
@@ -331,13 +300,8 @@
         toEl.disabled = false;
         if(!toEl.value) toEl.value = fromEl.value;
         const to = parseISODate(toEl.value);
-        if(to.getTime() < from.getTime()) {
-          showFieldWarn(fromEl,'開催日(From)は開催日(To)以前にしてください。');
-        }
-        else {
-          clearFieldWarn(fromEl);
-          clearFieldWarn(toEl);
-        }
+        if(to.getTime() < from.getTime()) showFieldWarn(fromEl,'開催日(From)は開催日(To)以前にしてください。');
+        else { clearFieldWarn(fromEl); clearFieldWarn(toEl); }
       };
 
       toEl.onblur = () => {
@@ -345,13 +309,8 @@
         const from = parseISODate(fromEl.value);
         const to = parseISODate(toEl.value);
         if(!to || !from){ clearFieldWarn(toEl); return; }
-        if(to.getTime() < from.getTime()) {
-          showFieldWarn(toEl,'開催日(To)は開催日(From)以降にしてください。');
-        }
-        else {
-          clearFieldWarn(fromEl);
-          clearFieldWarn(toEl);
-        }
+        if(to.getTime() < from.getTime()) showFieldWarn(toEl,'開催日(To)は開催日(From)以降にしてください。');
+        else { clearFieldWarn(fromEl); clearFieldWarn(toEl); }
       };
 
       deadlineEl.onblur = () => {
@@ -362,6 +321,223 @@
         else clearFieldWarn(deadlineEl);
       };
     }
+
+    // ===== 表：描画 =====
+    function updateMoveButtons(){
+      const i = state.selectedIndex;
+      const n = state.rows.length;
+      const ok = Number.isInteger(i) && i >= 0 && i < n;
+
+      btnUp.disabled = !(ok && i > 0);
+      btnDown.disabled = !(ok && i < n-1);
+      btnDel.disabled = !(ok && n > 1);
+    }
+
+    function renderQuestionRows(){
+      tbody.innerHTML = '';
+
+      const viewRows = state.rows.slice(0, QUESTION_ROWS_MAX);
+
+      viewRows.forEach((row, idx)=>{
+        const tr = document.createElement('tr');
+        tr.dataset.index = String(idx);
+
+        tr.innerHTML = `
+          <td style="padding:8px; border-bottom:1px solid var(--line); color:var(--muted);">${idx+1}</td>
+
+          <td style="padding:8px; border-bottom:1px solid var(--line);">
+            <input data-k="title" data-index="${idx}" placeholder="質問内容" style="width:260px;">
+          </td>
+
+          <td style="padding:8px; border-bottom:1px solid var(--line);">
+            <select data-k="type" data-index="${idx}" style="width:180px;">
+              <option value="">（未選択）</option>
+              ${TYPE_OPTIONS.map(t=>`<option value="${t}">${t}</option>`).join('')}
+            </select>
+          </td>
+
+          <td style="padding:8px; border-bottom:1px solid var(--line); text-align:center;">
+            <input type="checkbox" data-k="required" data-index="${idx}" style="transform:scale(1.2)" title="必須にする">
+          </td>
+
+          <td style="padding:8px; border-bottom:1px solid var(--line);">
+            <input data-k="help" data-index="${idx}" placeholder="説明" style="width:220px;">
+          </td>
+
+          ${[1,2,3,4,5].map(n=>`
+            <td style="padding:8px; border-bottom:1px solid var(--line);">
+              <input data-k="opt${n}" data-index="${idx}" placeholder="選択肢${n}" style="width:170px;">
+            </td>
+          `).join('')}
+        `;
+
+        tbody.appendChild(tr);
+
+        // 値反映
+        const setVal = (k, v)=>{
+          const el = tr.querySelector(`[data-k="${k}"][data-index="${idx}"]`);
+          if(!el) return;
+          if(el.type === 'checkbox') el.checked = !!v;
+          else el.value = v ?? '';
+        };
+
+        setVal('title', row.title);
+        setVal('type', row.type);
+        setVal('required', !!row.required);
+        setVal('help', row.help);
+        setVal('opt1', row.opt1);
+        setVal('opt2', row.opt2);
+        setVal('opt3', row.opt3);
+        setVal('opt4', row.opt4);
+        setVal('opt5', row.opt5);
+
+        // 選択状態
+        tr.classList.toggle('is-selected', idx === state.selectedIndex);
+
+        // 選択肢 enable/disable
+        normalizeOptEnabling(tr, row);
+      });
+
+      updateMoveButtons();
+    }
+
+    function normalizeOptEnabling(tr, row){
+      const type = String(row.type||'').trim();
+      const isChoice = CHOICE_TYPES.has(type);
+
+      const getOpt = (n)=> String(row[`opt${n}`] || '').trim();
+
+      for(let n=1;n<=5;n++){
+        const inp = tr.querySelector(`input[data-k="opt${n}"]`);
+        if(!inp) continue;
+
+        let enabled = false;
+
+        if(isChoice){
+          if(n === 1) enabled = true;
+          else enabled = !!getOpt(n-1); // opt(n-1)が入力済みなら opt(n)が有効
+        } else {
+          enabled = false;
+        }
+
+        inp.disabled = !enabled;
+
+        // ツールチップ（理由）
+        if(!isChoice){
+          inp.title = '質問タイプが「ラジオボタン/チェックボックス/プルダウン」の時だけ入力できます';
+        } else if(n >= 2 && !enabled){
+          inp.title = `選択肢${n-1}を入力すると編集できます`;
+        } else {
+          inp.title = '';
+        }
+
+        const td = inp.closest('td');
+        if(td) td.classList.toggle('is-disabled', inp.disabled);
+      }
+    }
+
+    function setSelected(index){
+      const n = state.rows.length;
+      if(!Number.isFinite(index)) return;
+      const i = Math.max(0, Math.min(index, n-1));
+      state.selectedIndex = i;
+
+      Array.from(tbody.querySelectorAll('tr[data-index]')).forEach(tr=>{
+        const idx = Number(tr.dataset.index);
+        tr.classList.toggle('is-selected', idx === state.selectedIndex);
+      });
+
+      updateMoveButtons();
+    }
+
+    // ===== 表：イベント（委譲）=====
+    tbody.addEventListener('click', (e)=>{
+      const tr = e.target.closest('tr[data-index]');
+      if(!tr) return;
+      setSelected(Number(tr.dataset.index));
+    });
+
+    tbody.addEventListener('input', (e)=>{
+      const el = e.target;
+      if(!el) return;
+
+      const k = el.dataset.k;
+      const idx = Number(el.dataset.index);
+      if(!k || !Number.isFinite(idx)) return;
+      const row = state.rows[idx];
+      if(!row) return;
+
+      if(el.type === 'checkbox') row[k] = !!el.checked;
+      else row[k] = el.value;
+
+      // type/opt の変更時は選択肢の有効/無効を更新
+      const tr = el.closest('tr');
+      if(tr && (k === 'type' || k.startsWith('opt'))){
+        normalizeOptEnabling(tr, row);
+      }
+    });
+
+    tbody.addEventListener('change', (e)=>{
+      // select change も拾う（type変更など）
+      const el = e.target;
+      if(!el) return;
+
+      const k = el.dataset.k;
+      const idx = Number(el.dataset.index);
+      if(!k || !Number.isFinite(idx)) return;
+      const row = state.rows[idx];
+      if(!row) return;
+
+      if(el.type === 'checkbox') row[k] = !!el.checked;
+      else row[k] = el.value;
+
+      const tr = el.closest('tr');
+      if(tr && (k === 'type' || k.startsWith('opt'))){
+        normalizeOptEnabling(tr, row);
+      }
+    });
+
+    btnUp.onclick = ()=>{
+      const i = state.selectedIndex;
+      if(!(i > 0)) return;
+      const tmp = state.rows[i-1];
+      state.rows[i-1] = state.rows[i];
+      state.rows[i] = tmp;
+      state.selectedIndex = i - 1;
+      renderQuestionRows();
+    };
+
+    btnDown.onclick = ()=>{
+      const i = state.selectedIndex;
+      if(!(i < state.rows.length - 1)) return;
+      const tmp = state.rows[i+1];
+      state.rows[i+1] = state.rows[i];
+      state.rows[i] = tmp;
+      state.selectedIndex = i + 1;
+      renderQuestionRows();
+    };
+
+    // ===== テンプレ反映（setRowは使わない：エラー回避）=====
+    btnTemplate.onclick = ()=>{
+      state.rows = TEMPLATE_ROWS.slice(0, QUESTION_ROWS_MAX).map(r=>({
+        title: r.title || '',
+        type: r.type || '',
+        required: !!r.required,
+        help: r.help || '',
+        opt1: r.opt1 || '',
+        opt2: r.opt2 || '',
+        opt3: r.opt3 || '',
+        opt4: r.opt4 || '',
+        opt5: r.opt5 || '',
+      }));
+      if(state.rows.length === 0) state.rows = [blankRow()];
+      state.selectedIndex = 0;
+      renderQuestionRows();
+      setStatus('テンプレを反映しました。', false);
+
+      const first = tbody.querySelector('tr[data-index="0"]');
+      if(first) first.scrollIntoView({behavior:'smooth', block:'center'});
+    };
 
     // ===== 取得・検証 =====
     function getBasic(){
@@ -419,18 +595,7 @@
       }
     }
 
-    // ===== ボタン処理 =====
-    function applyTemplate(){
-      for(let i=1;i<=QUESTION_ROWS_MAX;i++){
-        const row = TEMPLATE_ROWS[i-1];
-        if(!row) continue;
-        setRow(i,row);
-      }
-      setStatus('テンプレを反映しました。', false);
-      const first = document.querySelector('[data-k="title"][data-i="1"]');
-      if(first) first.scrollIntoView({behavior:'smooth', block:'center'});
-    }
-
+    // ===== 作成確認文 =====
     function buildConfirmText(b, rows){
       const lines = [];
       lines.push('■祭り基本情報');
@@ -471,20 +636,42 @@
       return lines.join('\n');
     }
 
+    // ===== 行データ（最大20行の仕様に合わせてpayloadにする）=====
+    function getRowsForPayload(){
+      // state.rows を 20行固定に整形（後方は空行で埋める）
+      const fixed = state.rows.slice(0, QUESTION_ROWS_MAX).map(r=>({
+        title: r.title || '',
+        type: r.type || '',
+        required: !!r.required,
+        help: r.help || '',
+        opt1: r.opt1 || '',
+        opt2: r.opt2 || '',
+        opt3: r.opt3 || '',
+        opt4: r.opt4 || '',
+        opt5: r.opt5 || '',
+      }));
+
+      while(fixed.length < QUESTION_ROWS_MAX){
+        fixed.push(blankRow());
+      }
+      return fixed;
+    }
+
+    // ===== 作成 =====
     async function createForm(){
       const b = getBasic();
       const err = validateClient(b);
       if(err) return App.modal?.warn(err);
 
-      const rows = getRows();
+      const rows = getRowsForPayload();
       const confirmText = buildConfirmText(b, rows);
+
       const ok = await App.modal?.confirm(confirmText, {
         title: 'この内容で作成します。よろしいですか？',
         okText: 'はい',
         cancelText: 'いいえ'
       });
       if(!ok) return;
-
 
       setStatus('作成中...（フォーム作成・フォルダ移動・回答連携）', true);
       showBusy();
@@ -520,24 +707,55 @@
       }
     }
 
-    // ===== 結線（onclickではなく上書きで多重登録防止）=====
-    btnTemplate.onclick = applyTemplate;
+    // 行削除
+    async function deleteRow(){
+      const i = state.selectedIndex;
+      if(!Number.isInteger(i)) return;
+      if(state.rows.length <= 1) return;
+
+      const ok = await App.modal?.confirm(`選択中の行（${i+1}行目）を削除します。よろしいですか？`, {
+        okText: 'はい',
+        cancelText: 'いいえ'
+      });
+
+      if(!ok) return;
+
+      state.rows.splice(i, 1);
+      if(state.rows.length === 0) state.rows.push(blankRow());
+      state.selectedIndex = Math.min(i, state.rows.length - 1);
+      renderQuestionRows();
+    }
+
+    // 行追加
+    async function addRow(){
+      if(state.rows.length >= QUESTION_ROWS_MAX){
+        return App.modal?.warn(`質問は最大${QUESTION_ROWS_MAX}行までです。`);
+      }
+      state.rows.push(blankRow());
+      state.selectedIndex = state.rows.length - 1;
+      renderQuestionRows();
+
+      // 追加した行へスクロール
+      const tr = tbody.querySelector(`tr[data-index="${state.selectedIndex}"]`);
+      if(tr) tr.scrollIntoView({ behavior:'smooth', block:'center' });
+    }
+
+    // create / copy
     btnCreate.onclick = createForm;
     if(btnCopyEdit) btnCopyEdit.onclick = () => copyValueFromHidden(result.editHidden);
     if(btnCopyPub) btnCopyPub.onclick = () => copyValueFromHidden(result.pubHidden);
+    btnDel.onclick = deleteRow;
+    btnAddRow.onclick = addRow;
 
-    // ===== 初期化実行（init内だけで行う）=====
-    renderQuestionRows();
+    // ===== init =====
     bindBasicFieldBehaviors();
+    renderQuestionRows();
 
-    // 初期表示
     setStatus('未作成', false);
     if(resultCard) resultCard.style.display = 'none';
 
-    // Wizardの表示を整える（存在する場合）
     if (typeof renderWizard === 'function') {
       try { renderWizard(); } catch(e) { console.error(e); }
     }
   };
 </script>
-
