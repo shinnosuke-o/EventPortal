@@ -1,4 +1,4 @@
-<script>
+﻿<script>
 /* =========================
    App Utils (shared)
 ========================= */
@@ -239,6 +239,10 @@ App.busy = App.busy || {
     App.unlockBodyScroll();
   }
 };
+App.makeBusy = App.makeBusy || ((message, opts = {}) => ({
+  show: () => { if (App.busy) return App.busy.show(message, opts); },
+  hide: () => { if (App.busy) return App.busy.hide(); }
+}));
 window.App = App;
 
 /* =========================
@@ -396,7 +400,8 @@ async function navigateTo(page, { replace = false } = {}) {
     else history.pushState({ page }, '', url);
 
   } catch (e) {
-    alert('画面の読み込みに失敗しました');
+    if (window.App && App.modal && App.modal.error) App.modal.error('画面の読み込みに失敗しました');
+    else alert('画面の読み込みに失敗しました');
     console.error(e);
   }
 }
@@ -506,3 +511,5 @@ async function navigateTo(page, { replace = false } = {}) {
   bindMenu();
 })();
 </script>
+
+

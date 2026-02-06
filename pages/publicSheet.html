@@ -1,4 +1,4 @@
-<section class="card">
+﻿<section class="card">
   <h1>公開用確認シート作成</h1>
   <p>イベントごとの公開用確認シートを作成します。</p>
   <div class="notice" id="ps_status">未作成</div>
@@ -72,44 +72,15 @@
     if (statusEl.dataset.inited === '1') return;
     statusEl.dataset.inited = '1';
 
-    function setStatus(t,b){
-      if (App.setStatus) return App.setStatus(statusEl, t, b);
-      statusEl.textContent = t;
-      statusEl.style.borderColor = b ? 'rgba(78,161,255,.55)' : 'var(--line)';
-    }
-    function showBusy(){
-      if (App.busy) return App.busy.show('公開用確認シートを作成しています。\nしばらくお待ちください。', { title: '作成中...' });
-    }
-    function hideBusy(){
-      if (App.busy) return App.busy.hide();
-    }
-
-    if (typeof callServer !== 'function') {
+    const setStatus = (t, b) => App.setStatus(statusEl, t, b);
+    const busy = App.makeBusy('公開用確認シートを作成しています。\nしばらくお待ちください。', { title: '作成中...' });
+if (typeof callServer !== 'function') {
       setStatus('エラー：callServer が見つかりません（script.js を確認してください）', false);
       return;
     }
 
     let loading = false;
     let headers = []; // [{index,name}...]
-
-    function escapeHtml(s){
-      return App.escapeHtml
-        ? App.escapeHtml(s)
-        : (s ?? '').toString()
-          .replaceAll('&','&amp;')
-          .replaceAll('<','&lt;')
-          .replaceAll('>','&gt;')
-          .replaceAll('"','&quot;')
-          .replaceAll("'","&#039;");
-    }
-
-    function callWithTimeout(fn, payload, ms, label){
-      if (App.callWithTimeout) return App.callWithTimeout(fn, payload, ms, label);
-      return Promise.race([
-        callServer(fn, payload || {}),
-        new Promise((_, reject)=> setTimeout(()=> reject(new Error(label ? `タイムアウト（${Math.ceil(ms/1000)}秒）：${label}` : `タイムアウト（${Math.ceil(ms/1000)}秒）`)), ms))
-      ]);
-    }
 
     function renderCols(list){
       colsRoot.innerHTML = '';
@@ -137,7 +108,7 @@
         row.innerHTML = `
           <input type="checkbox" data-col-idx="${h.index}" checked />
           <span style="color:var(--muted); min-width:56px;">Col${h.index}</span>
-          <span>${escapeHtml(h.name)}</span>
+          <span>${App.escapeHtml(h.name)}</span>
         `;
         wrap.appendChild(row);
       });
@@ -155,7 +126,7 @@
       if(resultCard) resultCard.style.display = 'none';
 
       try{
-        const res = await callWithTimeout('api_listEventSheets', {}, 15000);
+        const res = await App.callWithTimeout('api_listEventSheets', {}, 15000);
         if (!res || res.ok !== true) throw new Error(res?.message || '一覧の取得に失敗しました');
 
         const names = res.data || [];
@@ -191,7 +162,7 @@
 
       App.busy?.show('列のヘッダを取得しています。\nしばらくお待ちください。', { title: '取得中...' });
       try{
-        const res = await callWithTimeout('api_getSheetHeaders', { sheetName }, 15000);
+        const res = await App.callWithTimeout('api_getSheetHeaders', { sheetName }, 15000);
         if (!res || res.ok !== true) throw new Error(res?.message || 'ヘッダ取得に失敗しました');
         headers = res.data || [];
 
@@ -247,16 +218,16 @@
       if(!ok) return;
 
       setStatus('作成中...', true);
-      showBusy();
+      busy.show();
 
       try{
-        const res = await callWithTimeout('api_createPublicCheckSheet', { sheetName, includeCols }, 60000);
+        const res = await App.callWithTimeout('api_createPublicCheckSheet', { sheetName, includeCols }, 60000);
 
         if(!res?.ok){
           throw new Error(res?.message || '作成に失敗しました');
         }
 
-        hideBusy();
+        busy.hide();
         setStatus('作成完了：初回は「アクセスを許可」が必要です。', false);
 
         if(resultCard) resultCard.style.display = 'block';
@@ -266,7 +237,7 @@
         App.modal?.info('作成が完了しました。\n\n初回は対象スプレッドシートで「アクセスを許可」してください。');
       }catch(e){
         console.error(e);
-        hideBusy();
+        busy.hide();
         setStatus('作成に失敗しました：' + (e.message||e), false);
         App.modal?.error('作成に失敗しました：' + (e.message||e));
       }
@@ -307,3 +278,6 @@
     loadSheets();
   };
 </script>
+
+
+

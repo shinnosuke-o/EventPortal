@@ -1,4 +1,4 @@
-<section class="card">
+﻿<section class="card">
   <h1>会計管理</h1>
   <div class="notice" id="ac_status">準備中...</div>
 </section>
@@ -262,40 +262,12 @@ window.accountingInit = function accountingInit(){
       .replaceAll('"','&quot;')
       .replaceAll("'","&#039;");
 
-  function setStatus(t, busyFlg){
-    if (App.setStatus) return App.setStatus(statusEl, t, busyFlg);
-    statusEl.textContent = t;
-    statusEl.style.borderColor = busyFlg ? 'rgba(78,161,255,.55)' : 'var(--line)';
-  }
-
-  function showBusy(){
-    if (App.busy) return App.busy.show('経費を登録中しています。\nしばらくお待ちください。', { title: '登録中です…' });
-  }
-  function hideBusy(){
-    if (App.busy) return App.busy.hide();
-  }
-
-  function openModal(){
-    modal.style.display='block';
-    if (App.lockBodyScroll) App.lockBodyScroll();
-    else document.body.style.overflow='hidden';
-  }
-  function closeModal(){
-    modal.style.display='none';
-    if (App.unlockBodyScroll) App.unlockBodyScroll();
-    else document.body.style.overflow='';
-  }
-
-  function openFilter(){
-    filterModal.style.display='block';
-    if (App.lockBodyScroll) App.lockBodyScroll();
-    else document.body.style.overflow='hidden';
-  }
-  function closeFilter(){
-    filterModal.style.display='none';
-    if (App.unlockBodyScroll) App.unlockBodyScroll();
-    else document.body.style.overflow='';
-  }
+  const setStatus = (t, busyFlg) => App.setStatus(statusEl, t, busyFlg);
+  const busy = App.makeBusy('経費を登録中しています。\nしばらくお待ちください。', { title: '登録中です…' });
+const openModal = ()=> App.openModal(modal);
+  const closeModal = ()=> App.closeModal(modal);
+  const openFilter = ()=> App.openModal(filterModal);
+  const closeFilter = ()=> App.closeModal(filterModal);
 
   function isoToYMD(iso){
     if(!iso) return '';
@@ -731,11 +703,11 @@ window.accountingInit = function accountingInit(){
 
     async function performSave(p){
       // task.htmlと同様：confirm→busy→保存→busy閉→完了
-      showBusy();
+      busy.show();
       try{
         const res = await saveModalCore(p);
 
-        hideBusy();
+        busy.hide();
         App.modal?.info(res.message || '保存しました');
 
         closeModal();          // 入力モーダルを閉じる
@@ -748,7 +720,7 @@ window.accountingInit = function accountingInit(){
 
       }catch(e){
         console.error(e);
-        hideBusy();
+        busy.hide();
 
         // 入力モーダルは残す（戻って修正できる）
         setModalStatus('保存に失敗しました：' + (e.message||e), false);
@@ -796,7 +768,7 @@ window.accountingInit = function accountingInit(){
     });
     if(!ok) return;
 
-    showBusy();
+    busy.show();
     try{
       const res = await callServer('api_bulkUpdateExpenseStatus', {
         rowNumbers: selectedRows,
@@ -813,7 +785,7 @@ window.accountingInit = function accountingInit(){
       console.error(e);
       App.modal?.error('更新に失敗しました：' + (e.message||e));
     }finally{
-      hideBusy();
+      busy.hide();
     }
   }
 
@@ -915,4 +887,7 @@ window.accountingInit = function accountingInit(){
   bindBasicFieldBehaviors();
 };
 </script>
+
+
+
 

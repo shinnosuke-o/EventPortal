@@ -1,4 +1,4 @@
-<section class="card">
+﻿<section class="card">
   <h1>出欠フォーム作成</h1>
   <p>入力内容に応じてGoogleフォームを作成します。</p>
   <div class="notice" id="createStatus">未作成</div>
@@ -224,19 +224,9 @@
     ];
 
     // ===== UIヘルパ =====
-    function setStatus(text, busy){
-      if (App.setStatus) return App.setStatus(statusEl, text, busy);
-      statusEl.textContent = text;
-      statusEl.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
-    }
-    function showBusy(){
-      if (App.busy) return App.busy.show('出欠フォームを作成しています。\nしばらくお待ちください。', { title: '作成中...' });
-    }
-    function hideBusy(){
-      if (App.busy) return App.busy.hide();
-    }
-
-    // ===== state（行はデフォルト1行）=====
+    const setStatus = (text, busy) => App.setStatus(statusEl, text, busy);
+    const busy = App.makeBusy('出欠フォームを作成しています。\nしばらくお待ちください。', { title: '作成中...' });
+// ===== state（行はデフォルト1行）=====
     function blankRow(){
       return {
         title:'', type:'', required:false, help:'',
@@ -674,20 +664,20 @@
       if(!ok) return;
 
       setStatus('作成中...（フォーム作成・フォルダ移動・回答連携）', true);
-      showBusy();
+      busy.show();
 
       try{
         const payload = { basic: b, rows };
         const res = await callServer('api_createAttendanceForm', payload);
 
         if(!res?.ok){
-          hideBusy();
+          busy.hide();
           setStatus(res?.message || '作成に失敗しました。', false);
           App.modal?.error(res?.message || '作成に失敗しました。');
           return;
         }
 
-        hideBusy();
+        busy.hide();
         setStatus('作成完了：リンクを確認してください。', false);
 
         if(resultCard) resultCard.style.display = 'block';
@@ -701,7 +691,7 @@
         App.modal?.info('作成が完了しました');
       }catch(e){
         console.error(e);
-        hideBusy();
+        busy.hide();
         setStatus('作成に失敗しました：' + (e.message || e), false);
         App.modal?.error('作成に失敗しました：' + (e.message || e));
       }
@@ -759,3 +749,5 @@
     }
   };
 </script>
+
+

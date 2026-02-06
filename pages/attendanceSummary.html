@@ -1,4 +1,4 @@
-<section class="card">
+﻿<section class="card">
   <h1>出欠集計</h1>
   <div class="notice" id="as_status">準備中...</div>
 </section>
@@ -268,22 +268,10 @@ window.attendanceSummaryInit = function attendanceSummaryInit(){
     document.body.removeChild(ta);
   }
 
-  async function callWithTimeout(api, payload, ms, label){
-    if (App.callWithTimeout) return App.callWithTimeout(api, payload, ms, label);
-    return await Promise.race([
-      callServer(api, payload || {}),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error(label ? `タイムアウト（${Math.ceil(ms/1000)}秒）：${label}` : `タイムアウト（${Math.ceil(ms/1000)}秒）`)), ms))
-    ]);
-  }
-
   // =====================
   // UI helpers
   // =====================
-  function setStatus(text, busy){
-    if (App.setStatus) return App.setStatus(dom.statusEl, text, busy);
-    dom.statusEl.textContent = text;
-    dom.statusEl.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
-  }
+  const setStatus = (text, busy) => App.setStatus(dom.statusEl, text, busy);
 
   function setImpStatus(text, busy){
     if(!dom.impStatusEl) return;
@@ -299,20 +287,9 @@ window.attendanceSummaryInit = function attendanceSummaryInit(){
       el.disabled = !!val;
     });
   }
+  const openModal = (el)=>{ if(!el) return; App.openModal(el); };
 
-  function openModal(el){
-    if(!el) return;
-    if (App.openModal) return App.openModal(el);
-    el.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeModal(el){
-    if(!el) return;
-    if (App.closeModal) return App.closeModal(el);
-    el.style.display = 'none';
-    document.body.style.overflow = '';
-  }
+  const closeModal = (el)=>{ if(!el) return; App.closeModal(el); };
 
   function withBusyModal(modalEl, fn){
     return async (...args)=>{
@@ -739,8 +716,8 @@ ${atStr} 時点
     setStatus('画面を準備中...', true);
 
     const [eventsRes, mastersRes] = await Promise.all([
-      callWithTimeout('api_listAttendanceEventSheets', {}, 15000, 'イベント一覧'),
-      callWithTimeout('api_listDancerMasterSheets', {}, 15000, 'マスタ一覧'),
+      App.callWithTimeout('api_listAttendanceEventSheets', {}, 15000, 'イベント一覧'),
+      App.callWithTimeout('api_listDancerMasterSheets', {}, 15000, 'マスタ一覧'),
     ]);
 
     if (!eventsRes || eventsRes.ok !== true) throw new Error(eventsRes?.message || 'イベント一覧取得に失敗しました');
@@ -769,7 +746,7 @@ ${atStr} 時点
 
     setStatus('列のヘッダを取得中...', true);
 
-    const res = await callWithTimeout('api_getSheetHeadersRow1', { sheetName }, 15000, 'ヘッダ取得');
+    const res = await App.callWithTimeout('api_getSheetHeadersRow1', { sheetName }, 15000, 'ヘッダ取得');
     if(!res || !res.ok) throw new Error(res?.message || 'ヘッダ取得に失敗しました');
 
     state.headersCache = res.data || [];
@@ -872,7 +849,7 @@ ${atStr} 時点
 
     App.busy?.show('参加者DBへ反映しています。\nしばらくお待ちください。', { title: 'インポート中です…' });
     try{
-      const res = await callWithTimeout('api_importParticipants', state.pendingImport, 60000);
+      const res = await App.callWithTimeout('api_importParticipants', state.pendingImport, 60000);
       if(!res || !res.ok) throw new Error(res?.message || 'インポートに失敗しました');
 
       setImpStatus('インポートが完了しました。', false);
@@ -895,7 +872,7 @@ ${atStr} 時点
 
     App.busy?.show('参加者DBにシートを作成しています。\nしばらくお待ちください。', { title: '作成中です…' });
     try{
-      const res = await callWithTimeout('api_createParticipantsDbSheet', { sheetName:name }, 30000);
+      const res = await App.callWithTimeout('api_createParticipantsDbSheet', { sheetName:name }, 30000);
       if(!res || !res.ok) throw new Error(res?.message || '作成に失敗しました');
 
       App.modal?.info('作成しました：' + name);
@@ -1013,3 +990,7 @@ ${atStr} 時点
   })();
 };
 </script>
+
+
+
+

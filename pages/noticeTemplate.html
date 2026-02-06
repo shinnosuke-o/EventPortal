@@ -1,4 +1,4 @@
-<section class="card">
+﻿<section class="card">
   <h1>案内テンプレ作成</h1>
   <p>イベント情報を元に案内文を自動生成します。</p>
   <div class="notice" id="nt_status">イベントを選択してください。</div>
@@ -39,15 +39,11 @@
     const $ = (s)=>document.querySelector(s);
     const sel = $('#nt_eventSelect');
     const txt = $('#nt_text');
+    const statusEl = $('#nt_status');
     const reloadBtn = document.querySelector('.sheet-reload-btn');
     const copyBtn = document.querySelector('.btn.btn-primary'); // コピーだけの想定。必要ならid付け推奨
 
-    function setStatus(text, busy){
-      const el = $('#nt_status');
-      if (App.setStatus) return App.setStatus(el, text, busy);
-      el.textContent = text;
-      el.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
-    }
+    const setStatus = (text, busy) => App.setStatus(statusEl, text, busy);
 
     const WEEK = ['日','月','火','水','木','金','土'];
     function toMDW(v){
@@ -99,18 +95,10 @@ ${d.publicUrl || ''}
 `;
     }
 
-    function callWithTimeout(fn, payload, ms, label){
-      if (App.callWithTimeout) return App.callWithTimeout(fn, payload, ms, label);
-      return Promise.race([
-        callServer(fn, payload || {}),
-        new Promise((_, reject)=> setTimeout(()=> reject(new Error(label ? `タイムアウト（${Math.ceil(ms/1000)}秒）：${label}` : `タイムアウト（${Math.ceil(ms/1000)}秒）`)), ms))
-      ]);
-    }
-
     async function loadEventList(){
       setStatus('イベント一覧を読み込み中...', true);
 
-      const res = await callWithTimeout('api_listGuideEvents', {}, 15000);
+      const res = await App.callWithTimeout('api_listGuideEvents', {}, 15000);
       if (!res || res.ok !== true) throw new Error(res?.message || 'イベント一覧取得に失敗しました');
       const names = res.data || [];
 
@@ -200,4 +188,6 @@ ${d.publicUrl || ''}
     setStatus('イベントを選択してください。', false);
   };
 </script>
+
+
 
