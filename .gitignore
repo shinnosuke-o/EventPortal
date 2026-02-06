@@ -1,0 +1,10 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+
+# Node (入れるなら)
+node_modules/
+
+# clasp (基本はコミットしてOKだが、嫌なら除外)
+# .clasp.json

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <base target="_top">
+    <!-- <link rel="icon" href="<?= faviconUrl ?>" type="image/png"> -->
+    <!-- <link rel="icon" href="<?= faviconUrl ?>" type="image/png" sizes="32x32">
+    <link rel="icon" href="<?= faviconUrl ?>" type="image/png" sizes="192x192"> -->
+    <link rel="icon" href="<?= faviconUrl ?>" type="image/png" sizes="180x180">
+    <link rel="shortcut icon" href="<?= faviconUrl ?>" type="image/png">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= appleTouchIconUrl ?>">
+    <link rel="apple-touch-icon-precomposed" sizes="180x180" href="<?= appleTouchIconUrl ?>">
+    <?!= include('styles'); ?>
+  </head>
+  <body>
+    <header class="app-header">
+      <a href="<?= homeUrl ?>" target="_top" class="brand brand-link">
+        <div class="brand-title">イベ班ポータル</div>
+        <div class="brand-sub">Event Portal</div>
+      </a>
+
+      <!-- 右上：ハンバーガー -->
+      <button id="menuBtn" class="menu-btn" aria-label="メニュー" aria-expanded="false" aria-controls="sideMenu">
+        <span class="menu-icon" aria-hidden="true"></span>
+      </button>
+
+    </header>
+
+    <!-- 右からスライドするサイドメニュー -->
+    <aside id="sideMenu" class="side-menu" aria-hidden="true">
+      <div class="side-menu-head">
+        <div>
+          <div class="side-menu-title">メニュー</div>
+          <div class="side-menu-sub">Portal Menu</div>
+        </div>
+      </div>
+
+      <nav class="side-menu-nav" aria-label="side menu">
+        <a class="side-item" href="?page=home" data-page="home">ホーム</a>
+        <a class="side-item" href="?page=task" data-page="task">タスク管理</a>
+        <a class="side-item" href="?page=accounting" data-page="accounting">会計管理</a>
+        <a class="side-item" href="?page=formWizard" data-page="formWizard">出欠フォーム作成</a>
+        <a class="side-item" href="?page=publicSheet" data-page="publicSheet">公開用確認シート作成</a>
+        <a class="side-item" href="?page=noticeTemplate" data-page="noticeTemplate">案内テンプレ作成</a>
+        <a class="side-item" href="?page=attendanceSummary" data-page="attendanceSummary">出欠集計</a>
+      </nav>
+    </aside>
+
+    <!-- 背景クリックで閉じる用 -->
+    <div id="menuBackdrop" class="menu-backdrop" aria-hidden="true"></div>
+
+    <nav class="tabs" aria-label="main tabs">
+      <a class="tab" data-page="home" href="?page=home">ホーム</a>
+      <a class="tab" data-page="task" href="?page=task">タスク管理</a>
+      <a class="tab" data-page="accounting" href="?page=accounting">会計管理</a>
+      <a class="tab" data-page="formWizard" href="?page=formWizard">出欠フォーム作成</a>
+      <a class="tab" data-page="publicSheet" href="?page=publicSheet">公開用確認シート作成</a>
+      <a class="tab" data-page="noticeTemplate" href="?page=noticeTemplate">案内テンプレ作成</a>
+      <a class="tab" data-page="attendanceSummary" href="?page=attendanceSummary">出欠集計</a>
+    </nav>
+
+    <main class="container" id="app">
+      <!-- GASテンプレートで最初のページを差し込み -->
+      <? if (page === 'home') { ?>
+        <?!= include('pages/home'); ?>
+      <? } else if (page === 'formWizard') { ?>
+        <?!= include('pages/formWizard'); ?>
+      <? } else if (page === 'publicSheet') { ?>
+        <?!= include('pages/publicSheet'); ?>        
+      <? } else if (page === 'noticeTemplate') { ?>
+        <?!= include('pages/noticeTemplate'); ?>              
+      <? } else if (page === 'attendanceSummary') { ?>
+        <?!= include('pages/attendanceSummary'); ?>        
+      <? } else if (page === 'task') { ?>
+        <?!= include('pages/task'); ?>
+      <? } else if (page === 'accounting') { ?>
+        <?!= include('pages/accounting'); ?>
+      <? } else { ?>
+        <?!= include('pages/home'); ?>
+      <? } ?>
+    </main>
+
+    <footer class="app-footer">
+      Copyright © 2026 AmataKanto Event. All Rights Reserved.
+    </footer>
+
+    <?!= include('script'); ?>
+    <script>
+      // アクティブタブのハイライト
+      window.__PAGE__ = "<?= page ?>";
+      setActiveTab(window.__PAGE__);
+    </script>
+  </body>
+</html>
+

@@ -1,0 +1,309 @@
+<section class="card">
+  <h1>公開用確認シート作成</h1>
+  <p>イベントごとの公開用確認シートを作成します。</p>
+  <div class="notice" id="ps_status">未作成</div>
+</section>
+
+<section class="card">
+  <h2>設定</h2>
+
+  <div class="field">
+    <div class="label">確認シートを作成するシートを選択してください（必須）</div>
+
+    <div class="sheet-select-row">
+      <select id="ps_sheetSelect" class="sheet-select">
+        <option value="">選択してください</option>
+      </select>
+
+      <button class="btn secondary sheet-reload-btn" id="ps_reloadBtn" type="button">
+        シート読み込み
+      </button>
+    </div>
+  </div> <!-- ★閉じ忘れ防止 -->
+
+  <div style="margin-top:14px;">
+    <div class="label">表示しない列のチェックを外してください（デフォルト：すべて表示）</div>
+    <div id="ps_cols" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="btn-row" style="margin-top:20px; flex-direction:column; align-items:center; gap:10px;">
+    <button class="btn btn-primary" id="ps_createBtn" type="button">公開用確認シートを作成する</button>
+  </div>
+
+  <div class="notice" style="margin-top:12px;">
+    作成後、初回はスプレッドシート上で <b>「アクセスを許可」</b> が必要です（IMPORTRANGEの仕様）。
+  </div>
+
+  <div class="card" id="ps_result" style="display:none; padding:12px; margin-top:12px;">
+    <h2>作成結果</h2>
+    <div class="field">
+      <div class="label">公開用確認シートURL</div>
+      <a id="ps_url_link" href="#" target="_blank" rel="noopener noreferrer"
+         style="word-break: break-all; color: var(--accent); text-decoration: underline;">
+        公開用確認シートを開く
+      </a>
+      <input id="ps_url" type="hidden" />
+      <div class="btn-row">
+        <button class="btn secondary" id="ps_copyBtn" type="button">リンクをコピー</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  window.publicSheetInit = function publicSheetInit(){
+    const App = window.App || {};
+    const $ = (s)=>document.querySelector(s);
+
+    const statusEl = $('#ps_status');
+    const sel = $('#ps_sheetSelect');
+    const reloadBtn = $('#ps_reloadBtn');
+    const createBtn = $('#ps_createBtn');
+    const colsRoot = $('#ps_cols');
+
+    const resultCard = $('#ps_result');
+    const urlHidden = $('#ps_url');
+    const urlLink = $('#ps_url_link');
+    const copyBtn = $('#ps_copyBtn');
+
+    if(!statusEl || !sel || !reloadBtn || !createBtn || !colsRoot) return;
+
+    // 多重init防止（SPA差し替え対策）
+    if (statusEl.dataset.inited === '1') return;
+    statusEl.dataset.inited = '1';
+
+    function setStatus(t,b){
+      if (App.setStatus) return App.setStatus(statusEl, t, b);
+      statusEl.textContent = t;
+      statusEl.style.borderColor = b ? 'rgba(78,161,255,.55)' : 'var(--line)';
+    }
+    function showBusy(){
+      if (App.busy) return App.busy.show('公開用確認シートを作成しています。\nしばらくお待ちください。', { title: '作成中...' });
+    }
+    function hideBusy(){
+      if (App.busy) return App.busy.hide();
+    }
+
+    if (typeof callServer !== 'function') {
+      setStatus('エラー：callServer が見つかりません（script.js を確認してください）', false);
+      return;
+    }
+
+    let loading = false;
+    let headers = []; // [{index,name}...]
+
+    function escapeHtml(s){
+      return App.escapeHtml
+        ? App.escapeHtml(s)
+        : (s ?? '').toString()
+          .replaceAll('&','&amp;')
+          .replaceAll('<','&lt;')
+          .replaceAll('>','&gt;')
+          .replaceAll('"','&quot;')
+          .replaceAll("'","&#039;");
+    }
+
+    function callWithTimeout(fn, payload, ms, label){
+      if (App.callWithTimeout) return App.callWithTimeout(fn, payload, ms, label);
+      return Promise.race([
+        callServer(fn, payload || {}),
+        new Promise((_, reject)=> setTimeout(()=> reject(new Error(label ? `タイムアウト（${Math.ceil(ms/1000)}秒）：${label}` : `タイムアウト（${Math.ceil(ms/1000)}秒）`)), ms))
+      ]);
+    }
+
+    function renderCols(list){
+      colsRoot.innerHTML = '';
+
+      if(!list || !list.length){
+        colsRoot.innerHTML = '<div class="notice">カラムが取得できませんでした。</div>';
+        return;
+      }
+
+      const wrap = document.createElement('div');
+      wrap.style.display = 'grid';
+      wrap.style.gridTemplateColumns = '1fr';
+      wrap.style.gap = '8px';
+
+      list.forEach(h=>{
+        const row = document.createElement('label');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '10px';
+        row.style.padding = '8px 10px';
+        row.style.border = '1px solid var(--line)';
+        row.style.borderRadius = '12px';
+        row.style.background = 'rgba(9,13,21,.35)';
+
+        row.innerHTML = `
+          <input type="checkbox" data-col-idx="${h.index}" checked />
+          <span style="color:var(--muted); min-width:56px;">Col${h.index}</span>
+          <span>${escapeHtml(h.name)}</span>
+        `;
+        wrap.appendChild(row);
+      });
+
+      colsRoot.appendChild(wrap);
+    }
+
+    async function loadSheets(){
+      if (loading) return;
+      loading = true;
+
+      setStatus('シート一覧を読み込み中...', true);
+      sel.innerHTML = '<option value="">選択してください</option>';
+      colsRoot.innerHTML = '';
+      if(resultCard) resultCard.style.display = 'none';
+
+      try{
+        const res = await callWithTimeout('api_listEventSheets', {}, 15000);
+        if (!res || res.ok !== true) throw new Error(res?.message || '一覧の取得に失敗しました');
+
+        const names = res.data || [];
+        (names || []).forEach(n=>{
+          const v = String(n ?? '').trim();
+          if(!v) return;
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          sel.appendChild(opt);
+        });
+
+        setStatus('シートを選択してください。', false);
+      }catch(e){
+        console.error(e);
+        setStatus('読み込みに失敗しました：' + (e.message||e), false);
+        App.modal?.error('読み込みに失敗しました：' + (e.message||e));
+      }finally{
+        loading = false;
+      }
+    }
+
+    async function loadHeaders(){
+      const sheetName = (sel.value || '').trim();
+      if(!sheetName){
+        headers = [];
+        colsRoot.innerHTML = '';
+        setStatus('シートを選択してください。', false);
+        return;
+      }
+
+      setStatus('列を読み込み中...', true);
+
+      App.busy?.show('列を読み込み中...\nしばらくお待ちください。', { title: '読み込み中...' });
+      try{
+        const res = await callWithTimeout('api_getSheetHeaders', { sheetName }, 15000);
+        if (!res || res.ok !== true) throw new Error(res?.message || 'カラム取得に失敗しました');
+        headers = res.data || [];
+
+        renderCols(headers);
+        setStatus('表示列を選択して「作成」を押してください。', false);
+      }catch(e){
+        console.error(e);
+        setStatus('カラム取得に失敗しました：' + (e.message||e), false);
+        App.modal?.error('カラム取得に失敗しました：' + (e.message||e));
+      }finally{
+        App.busy?.hide();
+      }
+    }
+
+    function getIncludeCols(){
+      const checks = colsRoot.querySelectorAll('input[type="checkbox"][data-col-idx]');
+      return Array.from(checks).map(ch=>({
+        index: Number(ch.dataset.colIdx),
+        include: !!ch.checked
+      })).filter(x=>Number.isFinite(x.index));
+    }
+
+    async function createPublic(){
+      const sheetName = (sel.value || '').trim();
+      if(!sheetName) return App.modal?.warn('シートを選択してください。');
+
+      const includeCols = getIncludeCols();
+      if(!includeCols.some(x=>x.include)){
+        App.modal?.warn('表示する列を選択してください。');
+        return;
+      }
+
+      const selectedCols = includeCols
+        .filter(x=>x.include)
+        .map(x=>{
+          const h = (headers || []).find(h=>Number(h.index) === Number(x.index));
+          const name = h && h.name ? String(h.name) : '';
+          return `Col${x.index}：${name}`;
+        });
+
+      const confirmText = [
+        '■公開用確認シート',
+        `・シート名：${sheetName}`,
+        '・表示する列',
+        ...(selectedCols.length ? selectedCols : ['（なし）'])
+      ].join('\n');
+
+      const ok = await App.modal?.confirm(confirmText, {
+        title: 'この内容で作成します。よろしいですか？',
+        okText: 'はい',
+        cancelText: 'いいえ'
+      });
+      if(!ok) return;
+
+      setStatus('作成中...', true);
+      showBusy();
+
+      try{
+        const res = await callWithTimeout('api_createPublicCheckSheet', { sheetName, includeCols }, 60000);
+
+        if(!res?.ok){
+          throw new Error(res?.message || '作成に失敗しました');
+        }
+
+        hideBusy();
+        setStatus('作成完了：初回は「アクセスを許可」が必要です。', false);
+
+        if(resultCard) resultCard.style.display = 'block';
+        if(urlHidden) urlHidden.value = res.url || '';
+        if(urlLink) urlLink.href = res.url || '#';
+
+        App.modal?.info('作成が完了しました。\n\n初回は対象スプレッドシートで「アクセスを許可」してください。');
+      }catch(e){
+        console.error(e);
+        hideBusy();
+        setStatus('作成に失敗しました：' + (e.message||e), false);
+        App.modal?.error('作成に失敗しました：' + (e.message||e));
+      }
+    }
+
+    async function copyResultUrl(){
+      const text = (urlHidden?.value || '').trim();
+      if(!text) return App.modal?.warn('コピーする内容がありません');
+
+      try{
+        if (App.copyToClipboard) await App.copyToClipboard(text);
+        else{
+          if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+          else{
+            const tmp = document.createElement('textarea');
+            tmp.value = text;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand('copy');
+            document.body.removeChild(tmp);
+          }
+        }
+        App.modal?.info('コピーしました');
+      }catch(e){
+        console.error(e);
+        App.modal?.error('コピーに失敗しました');
+      }
+    }
+
+    // 結線（上書き＝多重登録防止）
+    reloadBtn.onclick = loadSheets;
+    sel.onchange = loadHeaders;
+    createBtn.onclick = createPublic;
+    if(copyBtn) copyBtn.onclick = copyResultUrl;
+
+    // 初期化
+    setStatus('未作成', false);
+    loadSheets();
+  };
+</script>

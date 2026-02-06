@@ -1,0 +1,203 @@
+<section class="card">
+  <h1>案内テンプレ作成</h1>
+  <p>イベント情報を元に案内文を自動生成します。</p>
+  <div class="notice" id="nt_status">イベントを選択してください。</div>
+</section>
+
+<section class="card">
+  <h2>作成</h2>
+
+  <div class="field">
+    <div class="label">イベントを選択してください（必須）</div>
+
+    <div class="sheet-select-row">
+      <select id="nt_eventSelect" class="sheet-select">
+        <option value="">選択してください</option>
+      </select>
+
+      <button id="nt_reloadBtn" class="btn secondary sheet-reload-btn" type="button">
+        イベント読み込み
+      </button>
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:14px;">
+    <div class="label">案内テンプレート</div>
+    <textarea id="nt_text" rows="16" placeholder="イベントを選択するとここに案内文が表示されます。"></textarea>
+
+    <div class="btn-row" style="margin-top:10px;">
+      <!-- ★右寄せ用のスペーサ -->
+      <div style="flex:1 1 auto;"></div>
+      <button id="nt_copyBtn" class="btn btn-primary" type="button">コピー</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  window.noticeTemplateInit = async function noticeTemplateInit() {
+    const App = window.App || {};
+    const $ = (s)=>document.querySelector(s);
+    const sel = $('#nt_eventSelect');
+    const txt = $('#nt_text');
+    const reloadBtn = document.querySelector('.sheet-reload-btn');
+    const copyBtn = document.querySelector('.btn.btn-primary'); // コピーだけの想定。必要ならid付け推奨
+
+    function setStatus(text, busy){
+      const el = $('#nt_status');
+      if (App.setStatus) return App.setStatus(el, text, busy);
+      el.textContent = text;
+      el.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
+    }
+
+    const WEEK = ['日','月','火','水','木','金','土'];
+    function toMDW(v){
+      if(!v) return '';
+      const d = (v instanceof Date) ? v : new Date(v);
+      if (isNaN(d.getTime())) return '';
+      return `${d.getMonth()+1}/${d.getDate()}(${WEEK[d.getDay()]})`;
+    }
+    function normalizePractice(text){
+      return (text || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).join('、');
+    }
+    function buildTemplate(d){
+      const eventName = d.eventName || '';
+      const place = d.place || '';
+      const condition = d.condition || '';
+      const practice = normalizePractice(d.practice || '');
+
+      const from = d.dateFrom ? new Date(d.dateFrom) : null;
+      const to = d.dateTo ? new Date(d.dateTo) : null;
+      const deadline = d.deadline ? new Date(d.deadline) : null;
+
+      const dateLine = (() => {
+        if (!from) return '';
+        const f = toMDW(from);
+        if (!to || from.toDateString() === to.toDateString()) return f;
+        return `${f}～${toMDW(to)}`;
+      })();
+
+      return `【${eventName}出欠】
+
+⚠️回答期限：${toMDW(deadline)}⚠️
+未定の方も必ず回答するようにしてください。
+
+●イベント名
+${eventName}
+●開催日
+${dateLine}
+●開催場所
+${place}
+●練習日(予定)
+${practice}
+●参加条件
+${condition}
+
+■回答フォーム
+${d.formUrl || ''}
+■回答確認シート
+${d.publicUrl || ''}
+`;
+    }
+
+    function callWithTimeout(fn, payload, ms, label){
+      if (App.callWithTimeout) return App.callWithTimeout(fn, payload, ms, label);
+      return Promise.race([
+        callServer(fn, payload || {}),
+        new Promise((_, reject)=> setTimeout(()=> reject(new Error(label ? `タイムアウト（${Math.ceil(ms/1000)}秒）：${label}` : `タイムアウト（${Math.ceil(ms/1000)}秒）`)), ms))
+      ]);
+    }
+
+    async function loadEventList(){
+      setStatus('イベント一覧を読み込み中...', true);
+
+      const res = await callWithTimeout('api_listGuideEvents', {}, 15000);
+      if (!res || res.ok !== true) throw new Error(res?.message || 'イベント一覧取得に失敗しました');
+      const names = res.data || [];
+
+      sel.innerHTML = '<option value="">選択してください</option>';
+      (names || []).forEach(n=>{
+        const v = String(n ?? '').trim();
+        if(!v) return;
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        sel.appendChild(opt);
+      });
+
+      setStatus('イベントを選択してください。', false);
+    }
+
+    async function onSelectEvent(){
+      const name = (sel.value || '').trim();
+
+      if(!name){
+        txt.value = '';
+        setStatus('イベントを選択してください。', false);
+        return;
+      }
+
+      setStatus('案内文を作成中...', true);
+
+      App.busy?.show('案内文を作成中...\nしばらくお待ちください。', { title: '作成中...' });
+
+      try{
+        const res = await callServer('api_getGuideEvent', { eventName: name });
+        console.log('api_getGuideEvent res=', res);
+
+        if (!res) throw new Error('サーバー応答が空です（null）。');
+        if (!res.ok) throw new Error(res.message || '取得失敗');
+
+        const d = res.data;
+        if (!d || !d.eventName) throw new Error('イベント情報が取得できませんでした（空）。');
+
+        txt.value = buildTemplate(d);
+        setStatus('案内文を作成しました。', false);
+      } catch(e){
+        console.error(e);
+        setStatus('作成に失敗しました：' + (e.message || e), false);
+        App.modal?.error('作成に失敗しました：' + (e.message || e));
+      }finally{
+        App.busy?.hide();
+      }
+    }
+
+    async function reload(){
+      sel.value = '';
+      txt.value = '';
+      await loadEventList();
+    }
+
+    async function copyNotice(){
+      const text = (txt.value || '').trim();
+      if(!text) return App.modal?.warn('コピーする内容がありません');
+
+      try{
+        if (App.copyToClipboard) await App.copyToClipboard(text);
+        else{
+          if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+          else{
+            const tmp = document.createElement('textarea');
+            tmp.value = text;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand('copy');
+            document.body.removeChild(tmp);
+          }
+        }
+        App.modal?.info('コピーしました');
+      }catch(e){
+        console.error(e);
+        App.modal?.error('コピーに失敗しました');
+      }
+    }
+
+    // 多重登録防止：上書き方式
+    sel.onchange = onSelectEvent;
+    if (reloadBtn) reloadBtn.onclick = reload;
+    if (copyBtn) copyBtn.onclick = copyNotice;
+
+    await loadEventList();
+    setStatus('イベントを選択してください。', false);
+  };
+</script>
+

@@ -1,0 +1,508 @@
+<script>
+/* =========================
+   App Utils (shared)
+========================= */
+const App = window.App || {};
+App.qs = App.qs || ((sel, root = document) => root.querySelector(sel));
+App.qsa = App.qsa || ((sel, root = document) => Array.from(root.querySelectorAll(sel)));
+App.escapeHtml = App.escapeHtml || ((s) => String(s ?? '')
+  .replaceAll('&','&amp;')
+  .replaceAll('<','&lt;')
+  .replaceAll('>','&gt;')
+  .replaceAll('"','&quot;')
+  .replaceAll("'","&#039;")
+);
+App.setStatus = App.setStatus || ((el, text, busy) => {
+  if (!el) return;
+  el.textContent = text;
+  el.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
+});
+App._scrollLocks = App._scrollLocks || 0;
+App.lockBodyScroll = App.lockBodyScroll || (() => {
+  App._scrollLocks = (App._scrollLocks || 0) + 1;
+  document.body.style.overflow = 'hidden';
+});
+App.unlockBodyScroll = App.unlockBodyScroll || (() => {
+  App._scrollLocks = Math.max(0, (App._scrollLocks || 0) - 1);
+  if (App._scrollLocks === 0) document.body.style.overflow = '';
+});
+App.toggleBodyScroll = App.toggleBodyScroll || ((lock) => {
+  if (lock) App.lockBodyScroll();
+  else App.unlockBodyScroll();
+});
+App.openModal = App.openModal || ((el) => {
+  if (!el) return;
+  el.style.display = 'block';
+  App.lockBodyScroll();
+});
+App.closeModal = App.closeModal || ((el) => {
+  if (!el) return;
+  el.style.display = 'none';
+  App.unlockBodyScroll();
+});
+App.callWithTimeout = App.callWithTimeout || ((fn, payload, ms, label) => {
+  const timeoutMs = Number(ms) || 15000;
+  const msg = label ? `タイムアウト（${Math.ceil(timeoutMs/1000)}秒）：${label}` : `タイムアウト（${Math.ceil(timeoutMs/1000)}秒）`;
+  return Promise.race([
+    callServer(fn, payload || {}),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), timeoutMs))
+  ]);
+});
+App.copyToClipboard = App.copyToClipboard || (async (text) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const tmp = document.createElement('textarea');
+  tmp.value = text;
+  tmp.style.position = 'fixed';
+  tmp.style.left = '-9999px';
+  tmp.style.top = '-9999px';
+  document.body.appendChild(tmp);
+  tmp.select();
+  document.execCommand('copy');
+  document.body.removeChild(tmp);
+});
+App.initOnce = App.initOnce || ((el, key = 'inited') => {
+  if (!el) return false;
+  if (el.dataset[key] === '1') return false;
+  el.dataset[key] = '1';
+  return true;
+});
+
+/* =========================
+   App Modal (alert/confirm)
+========================= */
+App._modalState = App._modalState || { host: null, busy: false, queue: [] };
+App._ensureModalHost = App._ensureModalHost || (() => {
+  if (App._modalState.host) return App._modalState.host;
+
+  const host = document.createElement('div');
+  host.id = 'app_modal_host';
+  host.style.display = 'none';
+  host.style.position = 'fixed';
+  host.style.inset = '0';
+  host.style.zIndex = '10050';
+  host.style.background = 'rgba(0,0,0,.55)';
+  host.innerHTML = `
+    <div style="
+      max-width:520px;
+      margin:10vh auto;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(18,26,39,.98);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      max-height:80vh;
+    ">
+      <div style="padding:16px; border-bottom:1px solid var(--line);">
+        <div id="app_modal_title" style="font-size:16px; font-weight:700; margin:0 0 8px;"></div>
+      </div>
+      <div id="app_modal_body_wrap" style="
+        padding:16px;
+        overflow:auto;
+        max-height:calc(80vh - 120px);
+      ">
+        <div id="app_modal_body" style="
+          white-space:pre-wrap;
+          line-height:1.6;
+          color:var(--text);
+          padding:10px 12px;
+          border:1px solid var(--line);
+          border-radius:12px;
+          background:rgba(9,13,21,.25);
+          font-size:14px;
+        "></div>
+      </div>
+      <div class="btn-row" style="padding:14px 16px; border-top:1px solid var(--line); justify-content:flex-end; gap:10px;">
+        <button id="app_modal_cancel" class="btn secondary"
+          style="display:inline-flex; align-items:center; justify-content:center; min-height:40px; line-height:1;">
+          キャンセル
+        </button>
+        <button id="app_modal_ok" class="btn btn-primary"
+          style="display:inline-flex; align-items:center; justify-content:center; min-height:40px; line-height:1;">
+          OK
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host);
+  App._modalState.host = host;
+  return host;
+});
+
+App._showModal = App._showModal || ((opts = {}) => {
+  return new Promise((resolve) => {
+    const host = App._ensureModalHost();
+    const titleEl = host.querySelector('#app_modal_title');
+    const bodyEl = host.querySelector('#app_modal_body');
+    const okBtn = host.querySelector('#app_modal_ok');
+    const cancelBtn = host.querySelector('#app_modal_cancel');
+
+    const type = opts.type || 'info';
+    const title = opts.title || (
+      type === 'error' ? 'エラー' :
+      type === 'warn'  ? '警告' :
+      type === 'confirm' ? '確認' : '情報'
+    );
+    const message = String(opts.message ?? '');
+    const showCancel = !!opts.confirm;
+
+    titleEl.textContent = title;
+    bodyEl.textContent = message;
+    cancelBtn.style.display = showCancel ? 'inline-flex' : 'none';
+    okBtn.textContent = showCancel ? (opts.okText || 'OK') : (opts.okText || '閉じる');
+    cancelBtn.textContent = opts.cancelText || 'キャンセル';
+
+    const cleanup = () => {
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+    };
+
+    const close = (result) => {
+      cleanup();
+      host.style.display = 'none';
+      App.unlockBodyScroll();
+      resolve(result);
+      App._modalState.busy = false;
+      const next = App._modalState.queue.shift();
+      if (next) next();
+    };
+
+    const open = () => {
+      App._modalState.busy = true;
+      host.style.display = 'block';
+      App.lockBodyScroll();
+      okBtn.onclick = () => close(true);
+      cancelBtn.onclick = () => close(false);
+    };
+
+    if (App._modalState.busy) App._modalState.queue.push(open);
+    else open();
+  });
+});
+
+App.modal = App.modal || {
+  info: (message, opts = {}) => App._showModal({ ...opts, type: 'info', message }),
+  warn: (message, opts = {}) => App._showModal({ ...opts, type: 'warn', message }),
+  error: (message, opts = {}) => App._showModal({ ...opts, type: 'error', message }),
+  confirm: (message, opts = {}) => App._showModal({ ...opts, type: 'confirm', message, confirm: true }),
+};
+
+/* =========================
+   App Busy Modal (shared)
+========================= */
+App._ensureBusyHost = App._ensureBusyHost || (() => {
+  if (App._modalState.busyHost) return App._modalState.busyHost;
+  const host = document.createElement('div');
+  host.id = 'app_busy_host';
+  host.style.display = 'none';
+  host.style.position = 'fixed';
+  host.style.inset = '0';
+  host.style.zIndex = '10060';
+  host.style.background = 'rgba(0,0,0,.55)';
+  host.innerHTML = `
+    <div style="
+      max-width:420px;
+      margin:18vh auto;
+      padding:16px;
+      border-radius:16px;
+      border:1px solid var(--line);
+      background:rgba(18,26,39,.98);
+    ">
+      <h2 id="app_busy_title" style="margin:0 0 8px;">処理中です…</h2>
+      <p id="app_busy_body" style="margin:0; color:var(--muted); line-height:1.6;">
+        しばらくお待ちください。
+      </p>
+    </div>
+  `;
+  document.body.appendChild(host);
+  App._modalState.busyHost = host;
+  return host;
+});
+
+App.busy = App.busy || {
+  show: (message, opts = {}) => {
+    const host = App._ensureBusyHost();
+    const titleEl = host.querySelector('#app_busy_title');
+    const bodyEl = host.querySelector('#app_busy_body');
+    titleEl.textContent = opts.title || '処理中です…';
+    bodyEl.textContent = message || 'しばらくお待ちください。';
+    host.style.display = 'block';
+    App.lockBodyScroll();
+  },
+  hide: () => {
+    const host = App._modalState.busyHost;
+    if (!host) return;
+    host.style.display = 'none';
+    App.unlockBodyScroll();
+  }
+};
+window.App = App;
+
+/* =========================
+   Core UI
+========================= */
+function setActiveTab(page){
+  document.querySelectorAll('.tab').forEach(a=>{
+    const active = a.dataset.page === page;
+    a.classList.toggle('active', active);
+    if (active) a.setAttribute('aria-current','page');
+    else a.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('.side-item').forEach(a=>{
+    const active = a.dataset.page === page;
+    a.classList.toggle('is-active', active);
+    if (active) a.setAttribute('aria-current','page');
+    else a.removeAttribute('aria-current');
+  });
+}
+
+/* =========================
+   Wizard (existing)
+========================= */
+const Wizard = {
+  step: 1,
+  total: 3,
+  setStep(n){
+    this.step = Math.max(1, Math.min(this.total, n));
+    renderWizard();
+  }
+};
+
+function renderWizard(){
+  const root = document.getElementById('wizardRoot');
+  if(!root) return;
+
+  root.querySelectorAll('[data-step-chip]').forEach(el=>{
+    const s = Number(el.dataset.stepChip);
+    el.classList.remove('active','done');
+    if(s === Wizard.step) el.classList.add('active');
+    else if(s < Wizard.step) el.classList.add('done');
+  });
+
+  root.querySelectorAll('[data-step-panel]').forEach(el=>{
+    const s = Number(el.dataset.stepPanel);
+    el.style.display = (s === Wizard.step) ? 'block' : 'none';
+  });
+
+  const prev = root.querySelector('[data-wiz-prev]');
+  const next = root.querySelector('[data-wiz-next]');
+  const finish = root.querySelector('[data-wiz-finish]');
+
+  if(prev) prev.disabled = Wizard.step === 1;
+  if(next) next.style.display = (Wizard.step < Wizard.total) ? 'inline-flex' : 'none';
+  if(finish) finish.style.display = (Wizard.step === Wizard.total) ? 'inline-flex' : 'none';
+}
+
+/* =========================
+   Server Call
+========================= */
+function callServer(fn, payload) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler((res) => {
+        console.log('callServer success:', fn, res);
+        if (res == null) {
+          resolve({ ok: false, message: 'サーバー応答が空です（null/undefined）' });
+          return;
+        }
+        if (res && typeof res === 'object' && Object.prototype.hasOwnProperty.call(res, 'ok')) {
+          resolve(res);
+          return;
+        }
+        resolve({ ok: true, data: res });
+      })
+      .withFailureHandler((err) => {
+        console.error('callServer failure:', fn, err);
+        const msg = (err && err.message) ? err.message : String(err);
+        reject(new Error(msg));
+      })[fn](payload);
+  });
+}
+
+
+/* =========================
+   HTML inject (+ inline script execution)
+   - SPAなので page html 内の <script> を実行する
+   - ただし、ページ側では init関数を定義して、こちらで呼ぶ運用に寄せる
+========================= */
+function injectHtmlWithScripts(container, html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+
+  const scripts = Array.from(tmp.querySelectorAll('script'));
+  scripts.forEach(s => s.remove());
+
+  container.innerHTML = tmp.innerHTML;
+
+  // inline script 実行（定義だけさせる）
+  scripts.forEach(oldScript => {
+    const s = document.createElement('script');
+    if (oldScript.src) s.src = oldScript.src;
+    else s.textContent = oldScript.textContent;
+
+    document.body.appendChild(s);
+    document.body.removeChild(s);
+  });
+}
+
+/* =========================
+   Page Init dispatcher
+========================= */
+function runPageInit(page){
+  const fnName = `${page}Init`;
+  const fn = fnName && window[fnName];
+
+  if (typeof fn === 'function') {
+    try { fn(); } catch(e){ console.error(e); }
+    return;
+  }
+
+  // 互換：既存の formWizard 初期化（古い buildRowsUI を残している場合）
+  if (page === 'formWizard' && typeof window.buildRowsUI === 'function') {
+    try { window.buildRowsUI(); } catch(e){ console.error(e); }
+  }
+}
+
+/* =========================
+   Navigation
+========================= */
+async function navigateTo(page, { replace = false } = {}) {
+  setActiveTab(page);
+
+  const app = document.getElementById('app');
+  if(!app) return;
+  app.innerHTML = `
+    <section class="card">
+      <h1>読み込み中...</h1>
+    </section>
+  `;
+
+  try {
+    const res = await callServer('api_getPageHtml', page);
+    if(!res || res.ok !== true) throw new Error(res?.message || '画面の取得に失敗しました');
+    const html = res.data || res.html || '';
+    injectHtmlWithScripts(app, html);
+
+    // ✅ 汎用 init
+    runPageInit(page);
+
+    // URL更新
+    const url = new URL(location.href);
+    url.searchParams.set('page', page);
+    if (replace) history.replaceState({ page }, '', url);
+    else history.pushState({ page }, '', url);
+
+  } catch (e) {
+    alert('画面の読み込みに失敗しました');
+    console.error(e);
+  }
+}
+
+/* =========================
+   One-time event bindings
+   - SPAで多重登録しない
+========================= */
+(function bindOnce(){
+  if (window.__APP_BOUND__) return;
+  window.__APP_BOUND__ = true;
+
+  function bindMenu(){
+    const btn = document.getElementById('menuBtn');
+    const closeBtn = document.getElementById('menuCloseBtn');
+    const menu = document.getElementById('sideMenu');
+    const backdrop = document.getElementById('menuBackdrop');
+    if(!btn || !menu || !backdrop) return;
+
+    const openMenu = ()=>{
+      menu.classList.add('is-open');
+      backdrop.classList.add('is-open');
+      btn.classList.add('is-open');
+      btn.setAttribute('aria-expanded','true');
+      menu.setAttribute('aria-hidden','false');
+      backdrop.setAttribute('aria-hidden','false');
+      App.lockBodyScroll();
+    };
+
+    const closeMenu = ()=>{
+      menu.classList.remove('is-open');
+      backdrop.classList.remove('is-open');
+      btn.classList.remove('is-open');
+      btn.setAttribute('aria-expanded','false');
+      menu.setAttribute('aria-hidden','true');
+      backdrop.setAttribute('aria-hidden','true');
+      App.unlockBodyScroll();
+    };
+
+    const toggleMenu = ()=>{
+      menu.classList.contains('is-open') ? closeMenu() : openMenu();
+    };
+
+    btn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMenu();
+    });
+
+    if(closeBtn){
+      closeBtn.addEventListener('click', (e)=>{
+        e.preventDefault();
+        closeMenu();
+      });
+    }
+
+    backdrop.addEventListener('click', closeMenu);
+
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape') closeMenu();
+    });
+
+    menu.addEventListener('click', (e)=>{
+      const a = e.target.closest('a.side-item');
+      if(!a) return;
+
+      const page = a.dataset.page;
+      closeMenu();
+
+      if(typeof window.navigateTo === 'function' && page){
+        e.preventDefault();
+        window.navigateTo(page);
+      }
+    });
+
+    window.addEventListener('popstate', closeMenu);
+  }
+
+  // タブクリックをSPA遷移に置き換え
+  document.addEventListener('click', (ev) => {
+    const a = ev.target.closest('a.tab');
+    if (!a) return;
+    ev.preventDefault();
+    navigateTo(a.dataset.page);
+  });
+
+  // ブラウザの戻る/進む
+  window.addEventListener('popstate', (ev) => {
+    const page =
+      (ev.state && ev.state.page) ||
+      (new URL(location.href)).searchParams.get('page') ||
+      'home';
+    navigateTo(page, { replace: true });
+  });
+
+  // 初回表示：URLに合わせて描画まで行う
+  window.addEventListener('DOMContentLoaded', () => {
+    const page =
+      (new URL(location.href)).searchParams.get('page') ||
+      window.__PAGE__ ||
+      'home';
+
+    history.replaceState({ page }, '', location.href);
+    navigateTo(page, { replace: true });
+  });
+
+  bindMenu();
+})();
+</script>

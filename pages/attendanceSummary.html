@@ -1,0 +1,1015 @@
+<section class="card">
+  <h1>出欠集計</h1>
+  <div class="notice" id="as_status">準備中...</div>
+</section>
+
+<section class="card">
+  <h2>設定</h2>
+
+  <div class="grid">
+    <div class="field">
+      <div class="label">集計するイベントを選択して下さい</div>
+      <select id="as_event"></select>
+    </div>
+
+    <div class="field">
+      <div class="label">踊り子マスタを選択してください</div>
+      <select id="as_master"></select>
+    </div>
+  </div>
+
+  <div class="notice" style="margin-top:10px;">
+    列の指定（イベント回答シートのヘッダから選択）
+  </div>
+
+  <div class="grid" id="as_colGrid" style="grid-template-columns:1fr 1fr;">
+    <div class="field"><div class="label">タイムスタンプ（必須）</div><select id="as_col_ts"></select></div>
+    <div class="field"><div class="label">名前（必須）</div><select id="as_col_name"></select></div>
+    <div class="field"><div class="label">よさ名（必須）</div><select id="as_col_yosana"></select></div>
+    <div class="field"><div class="label">性別</div><select id="as_col_gender"></select></div>
+    <div class="field"><div class="label">参加可否（必須）</div><select id="as_col_attend"></select></div>
+    <div class="field"><div class="label">未定の方へ</div><select id="as_col_undecided"></select></div>
+  </div>
+
+  <div class="btn-row" style="margin-top:14px; justify-content:flex-end;">
+    <button id="as_run" class="btn btn-primary">集計</button>
+  </div>
+</section>
+
+<section class="card" id="as_summaryCard" style="display:none;">
+  <h2>集計サマリー</h2>
+
+  <div class="notice" id="as_summaryAt" style="margin-top:10px;"></div>
+
+  <div style="margin-top:10px; border:1px solid var(--line); border-radius:14px; padding:10px;">
+    <pre id="as_summaryText" style="margin:0; white-space:pre-wrap; line-height:1.5;"></pre>
+  </div>
+
+  <div class="btn-row" style="margin-top:10px; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
+    <button id="as_copySummary" class="btn secondary">人数をコピー</button>
+    <button id="as_copyNeed" class="btn secondary">未定者・未回答者をコピー</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>参加者</h2>
+  <div style="overflow:auto; border:1px solid var(--line); border-radius:14px; margin-top:10px;">
+    <div id="as_participants"></div>
+  </div>
+  <div class="btn-row" style="margin-top:12px; justify-content:flex-end;">
+    <button id="as_importOpen" class="btn">参加者DBにインポート</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>未定者</h2>
+  <div id="as_undecided" style="display:grid; gap:8px; margin-top:10px;"></div>
+  <div class="btn-row" style="margin-top:10px; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
+    <button id="as_copyUndecided" class="btn secondary">未定者をコピー</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>未回答者</h2>
+  <div id="as_unanswered" style="display:grid; gap:8px; margin-top:10px;"></div>
+    <div class="btn-row" style="margin-top:10px; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
+    <button id="as_copyUnanswered" class="btn secondary">未回答者をコピー</button>
+  </div>
+</section>
+
+<section class="card" id="as_reviewCard" style="display:none;">
+  <h2>要確認（名前一致せず、よさ名で一致の可能性）</h2>
+  <div class="notice" style="margin-top:10px;">
+    名前の誤字/旧字/スペース違い等が疑われます。必要なら元データを確認してください。
+  </div>
+  <div id="as_review" style="display:grid; gap:8px; margin-top:10px;"></div>
+</section>
+
+<!-- インポートモーダル -->
+<div id="as_importModal" style="display:none; position:fixed; inset:0; z-index:10035; background:rgba(0,0,0,.55);">
+  <div style="
+    width:min(860px, 100%);
+    max-height:calc(100dvh - 24px);
+    margin:12px auto;
+    border-radius:16px;
+    border:1px solid var(--line);
+    background:rgba(18,26,39,.98);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  ">
+    <!-- ヘッダ固定 -->
+    <div style="padding:14px; border-bottom:1px solid var(--line);">
+      <h2 style="margin:0;">参加者DBにインポート</h2>
+      <!-- <div class="notice" style="margin-top:10px;">
+        参加者ごとの登録区分（正規/限定）を設定してインポートできます（デフォルト：正規）。
+      </div> -->
+      <div class="notice" id="as_imp_status" style="margin-top:10px;">インポート先のシート/各メンバーの登録区分を設定してください。</div>
+    </div>
+
+    <!-- スクロール領域 -->
+    <div style="padding:14px; overflow:auto; -webkit-overflow-scrolling:touch;">
+      <div class="field">
+        <div class="label">インポート先のシート</div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:nowrap;">
+            <select id="as_dbSheet" style="flex:1; min-width:0;"></select>
+            <button id="as_newSheetOpen" class="btn secondary" style="flex:0 0 auto; padding:10px 10px;">新規作成</button>
+            <button id="as_dbReload" class="btn secondary" style="flex:0 0 auto; padding:10px 10px;">一覧更新</button>
+          </div>
+      </div>
+      <div id="as_importList" style="display:grid; gap:8px; margin-top:12px;"></div>
+    </div>
+
+    <!-- フッタ固定 -->
+    <div class="btn-row" style="padding:14px; border-top:1px solid var(--line); justify-content:flex-end; gap:10px;">
+      <button id="as_im_close" class="btn secondary">閉じる</button>
+      <button id="as_im_run" class="btn btn-primary">インポート</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新規シート作成モーダル -->
+<div id="as_newSheetModal" style="display:none; position:fixed; inset:0; z-index:10036; background:rgba(0,0,0,.55);">
+  <div style="max-width:520px; margin:12vh auto; padding:14px; border-radius:16px; border:1px solid var(--line); background:rgba(18,26,39,.98);">
+    <h2 style="margin:0 0 10px;">シート新規作成</h2>
+    <div class="field">
+      <div class="label">シート名</div>
+      <input id="as_newSheetName" placeholder="例：どまつり2026">
+    </div>
+    <div class="btn-row" style="margin-top:14px; justify-content:flex-end; gap:10px;">
+      <button id="as_ns_close" class="btn secondary">閉じる</button>
+      <button id="as_ns_create" class="btn btn-primary">作成</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+window.attendanceSummaryInit = function attendanceSummaryInit(){
+  const $ = (s)=>document.querySelector(s);
+  const App = window.App || {};
+
+  // =====================
+  // DOM
+  // =====================
+  const dom = {
+    statusEl: $('#as_status'),
+    eventSel: $('#as_event'),
+    masterSel: $('#as_master'),
+
+    colTs: $('#as_col_ts'),
+    colName: $('#as_col_name'),
+    colYosana: $('#as_col_yosana'),
+    colGender: $('#as_col_gender'),
+    colAttend: $('#as_col_attend'),
+    colUndecided: $('#as_col_undecided'),
+
+    runBtn: $('#as_run'),
+
+    participantsHost: $('#as_participants'),
+    undecidedHost: $('#as_undecided'),
+    unansweredHost: $('#as_unanswered'),
+    reviewCard: $('#as_reviewCard'),
+    reviewHost: $('#as_review'),
+
+    importOpen: $('#as_importOpen'),
+    importModal: $('#as_importModal'),
+    dbSheetSel: $('#as_dbSheet'),
+    dbReload: $('#as_dbReload'),
+    importList: $('#as_importList'),
+    imClose: $('#as_im_close'),
+    imRun: $('#as_im_run'),
+
+    impStatusEl: $('#as_imp_status'),
+
+
+    newSheetOpen: $('#as_newSheetOpen'),
+    newSheetModal: $('#as_newSheetModal'),
+    nsName: $('#as_newSheetName'),
+    nsClose: $('#as_ns_close'),
+    nsCreate: $('#as_ns_create'),
+
+    summaryCard: $('#as_summaryCard'),
+    summaryAtEl: $('#as_summaryAt'),
+    summaryTextEl: $('#as_summaryText'),
+    copySummaryBtn: $('#as_copySummary'),
+    copyUndecidedBtn: $('#as_copyUndecided'),
+    copyUnansweredBtn: $('#as_copyUnanswered'),
+    copyNeedBtn: $('#as_copyNeed'),
+  };
+
+  // =====================
+  // Guard
+  // =====================
+  if(!dom.statusEl || !dom.eventSel || !dom.masterSel || !dom.runBtn) return;
+  if (dom.eventSel.dataset.inited === '1') return;
+  dom.eventSel.dataset.inited = '1';
+
+  if (typeof callServer !== 'function'){
+    dom.statusEl.textContent = 'エラー：callServer が見つかりません';
+    return;
+  }
+
+  // =====================
+  // State
+  // =====================
+  const state = {
+    headersCache: [],
+    lastAgg: null,
+    pendingAgg: null,
+    pendingImport: null,
+    lastSummary: null, // { atStr, title, summaryText, res }
+  };
+
+  // =====================
+  // Utils
+  // =====================
+  const esc = App.escapeHtml
+    ? (s)=>App.escapeHtml(s)
+    : (s)=>String(s??'')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+
+  const pad2 = (n)=>String(n).padStart(2,'0');
+  const formatJpDateTime = (d)=>{
+    const yyyy = d.getFullYear();
+    const MM = pad2(d.getMonth()+1);
+    const dd = pad2(d.getDate());
+    const HH = pad2(d.getHours());
+    const mm = pad2(d.getMinutes());
+    return `${yyyy}/${MM}/${dd} ${HH}:${mm}`;
+  };
+
+  const normalizeGender = (g)=>{
+    const x = String(g||'').trim();
+    if (!x) return '';
+    if (x.includes('男')) return '男';
+    if (x.includes('女')) return '女';
+    return x;
+  };
+
+  async function copyToClipboard(text){
+    if (App.copyToClipboard) return App.copyToClipboard(text);
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+
+  async function callWithTimeout(api, payload, ms, label){
+    if (App.callWithTimeout) return App.callWithTimeout(api, payload, ms, label);
+    return await Promise.race([
+      callServer(api, payload || {}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error(label ? `タイムアウト（${Math.ceil(ms/1000)}秒）：${label}` : `タイムアウト（${Math.ceil(ms/1000)}秒）`)), ms))
+    ]);
+  }
+
+  // =====================
+  // UI helpers
+  // =====================
+  function setStatus(text, busy){
+    if (App.setStatus) return App.setStatus(dom.statusEl, text, busy);
+    dom.statusEl.textContent = text;
+    dom.statusEl.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
+  }
+
+  function setImpStatus(text, busy){
+    if(!dom.impStatusEl) return;
+    if (App.setStatus) return App.setStatus(dom.impStatusEl, text, busy);
+    dom.impStatusEl.textContent = text;
+    dom.impStatusEl.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
+  }
+
+  function setDisabled(map){
+    Object.entries(map).forEach(([key, val])=>{
+      const el = dom[key];
+      if (!el) return;
+      el.disabled = !!val;
+    });
+  }
+
+  function openModal(el){
+    if(!el) return;
+    if (App.openModal) return App.openModal(el);
+    el.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal(el){
+    if(!el) return;
+    if (App.closeModal) return App.closeModal(el);
+    el.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function withBusyModal(modalEl, fn){
+    return async (...args)=>{
+      if(modalEl) openModal(modalEl);
+      try{
+        return await fn(...args);
+      } finally {
+        if(modalEl) closeModal(modalEl);
+      }
+    };
+  }
+
+  function emptyBox(msg){
+    return `<div class="notice" style="margin:10px;">${esc(msg)}</div>`;
+  }
+
+  // =====================
+  // Select / Option builders
+  // =====================
+  function optHTML(items){
+    const head = '<option value="">選択してください</option>';
+    return head + (items||[]).map(x=>{
+      const v = String(x ?? '').trim();
+      if(!v) return '';
+      return `<option value="${esc(v)}">${esc(v)}</option>`;
+    }).join('');
+  }
+
+  function headerOpt(headers){
+    return '<option value="">（未選択）</option>' + (headers||[]).map(h=>{
+      const idx = Number(h.index);
+      const name = String(h.name||'').trim();
+      if(!idx) return '';
+      return `<option value="${idx}">Col${idx}：${esc(name)}</option>`;
+    }).join('');
+  }
+
+  function guess(headers, keywords){
+    for (const h of (headers||[])){
+      const name = String(h.name||'');
+      if (keywords.some(k=>name.includes(k))) return String(h.index);
+    }
+    return '';
+  }
+
+  function setColsEmpty(){
+    const html = '<option value="">（未選択）</option>';
+    [dom.colTs,dom.colName,dom.colYosana,dom.colGender,dom.colAttend,dom.colUndecided].forEach(el=>{
+      if(el) el.innerHTML = html;
+    });
+  }
+
+  // =====================
+  // Table renderers
+  // =====================
+  function tableCompact(rows){
+    if(!rows || rows.length===0) return emptyBox('該当なし');
+    const body = rows.map(r=>`
+      <tr>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.name)}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.yosana)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
+        <thead>
+          <tr style="background: rgba(9,13,21,.5);">
+            <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">名前</th>
+            <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">よさ名</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    `;
+  }
+
+  function tableParticipants2Tier(items){
+    if(!items || items.length===0) return emptyBox('該当なし');
+
+    const head = `
+      <thead>
+        <tr style="background: rgba(9,13,21,.35);">
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">名前</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">よさ名</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">性別</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">参加区分</th>
+        </tr>
+      </thead>
+    `;
+
+    const body = (items||[]).map(x=>`
+      <tr>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(x.name)}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(x.yosana)}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(x.gender||'')}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(x.attendType||'')}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
+        ${head}
+        <tbody>${body}</tbody>
+      </table>
+    `;
+  }
+
+  function tableUndecided2Tier(items){
+    if(!items || items.length===0) return emptyBox('該当なし');
+
+    const head = `
+      <thead>
+        <tr style="background: rgba(9,13,21,.35);">
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">名前</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">よさ名</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">未定理由等</th>
+        </tr>
+      </thead>
+    `;
+
+    const body = (items||[]).map(x=>`
+      <tr>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(x.name)}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(x.yosana)}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(x.reason||'')}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
+        ${head}
+        <tbody>${body}</tbody>
+      </table>
+    `;
+  }
+
+  function renderReviewTable(items){
+    if(!dom.reviewCard || !dom.reviewHost) return;
+
+    if(!items || items.length===0){
+      dom.reviewCard.style.display = 'none';
+      dom.reviewHost.innerHTML = '';
+      return;
+    }
+    dom.reviewCard.style.display = 'block';
+
+    const head = `
+      <thead>
+        <tr style="background: rgba(9,13,21,.35);">
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">名前(マスタ)</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">よさ名</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">名前(回答)</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">よさ名</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">区分</th>
+        </tr>
+      </thead>
+    `;
+
+    const body = items.map(x=>`
+      <tr style="background:rgba(255,180,180,.06);">
+        <td style="padding:10px; border-bottom:1px solid var(--line); white-space:nowrap;">${esc(x.masterName||'')}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); white-space:nowrap;">${esc(x.masterYosana||'')}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); white-space:nowrap;">${esc(x.responseName||'')}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); white-space:nowrap;">${esc(x.responseYosana||'')}</td>
+        <td style="padding:10px; border-bottom:1px solid var(--line); white-space:nowrap;">${esc(x.attend||'')}</td>
+      </tr>
+    `).join('');
+
+    dom.reviewHost.innerHTML = `
+      <div style="overflow:auto; border:1px solid var(--line); border-radius:14px;">
+        <table style="min-width:760px; width:100%; border-collapse:collapse;">
+          ${head}
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderAgg(res){
+    dom.participantsHost.innerHTML = tableParticipants2Tier(res.participants || []);
+    dom.undecidedHost.innerHTML = tableUndecided2Tier(res.undecided || []);
+    dom.unansweredHost.innerHTML = tableCompact(res.unanswered || []);
+    renderReviewTable(res.review || []);
+  }
+
+  // =====================
+  // Summary / Copy builders
+  // =====================
+  function buildSummary(res, atStr, title){
+    const participants = Array.isArray(res?.participants) ? res.participants : [];
+    const undecided = Array.isArray(res?.undecided) ? res.undecided : [];
+    const unanswered = Array.isArray(res?.unanswered) ? res.unanswered : [];
+
+    const cnt = {
+      p_total: participants.length,
+      p_dancer: 0,
+      p_staff: 0,
+      dancer_m: 0,
+      dancer_f: 0,
+      staff_m: 0,
+      staff_f: 0,
+      u_total: undecided.length,
+      ua_total: unanswered.length
+    };
+
+    for (const p of participants){
+      const type = String(p.attendType||'').trim();
+      const g = normalizeGender(p.gender);
+      if (type === '踊り子'){
+        cnt.p_dancer++;
+        if (g === '男') cnt.dancer_m++;
+        if (g === '女') cnt.dancer_f++;
+      } else if (type === 'スタッフ'){
+        cnt.p_staff++;
+        if (g === '男') cnt.staff_m++;
+        if (g === '女') cnt.staff_f++;
+      }
+    }
+
+    const text =
+`【${title}集計結果】
+${atStr} 時点
+■参加者：${cnt.p_total}
+・踊り子：${cnt.p_dancer}
+　男：${cnt.dancer_m}
+　女：${cnt.dancer_f}
+・スタッフ：${cnt.p_staff}
+　男：${cnt.staff_m}
+　女：${cnt.staff_f}
+■未定者：${cnt.u_total}
+■未回答者：${cnt.ua_total}`;
+
+    return { cnt, text };
+  }
+
+  function buildCopyUndecided(res){
+    const items = Array.isArray(res?.undecided) ? res.undecided : [];
+    const lines = items.map(x=>{
+      const name = String(x.name||'').trim();
+      const y = String(x.yosana||'').trim();
+      const reason = String(x.reason||'').trim();
+      return `${name}(${y})→${reason}`;
+    });
+    return `■未定者\n` + (lines.length ? lines.join('\n') : '該当なし');
+  }
+
+  function buildCopyUnanswered(res){
+    const items = Array.isArray(res?.unanswered) ? res.unanswered : [];
+    const lines = items.map(x=>{
+      const name = String(x.name||'').trim();
+      const y = String(x.yosana||'').trim();
+      return `${name}(${y})`;
+    });
+    return `■未回答者\n` + (lines.length ? lines.join('\n') : '該当なし');
+  }
+
+  function buildCopyNeed(res, atStr, title){
+    const u = buildCopyUndecided(res);
+    const ua = buildCopyUnanswered(res);
+    return `【${title}集計結果】\n${atStr} 時点\n${u}\n${ua}`;
+  }
+
+  function renderSummary(res){
+    const atStr = formatJpDateTime(new Date());
+    const title = `${String(dom.eventSel.value || '').trim()}`;
+
+    const summary = buildSummary(res, atStr, title);
+
+    state.lastSummary = { atStr, title, summaryText: summary.text, res };
+
+    if(dom.summaryCard) dom.summaryCard.style.display = 'block';
+    if(dom.summaryAtEl) dom.summaryAtEl.textContent = `集計日時：${atStr}`;
+    if(dom.summaryTextEl) dom.summaryTextEl.textContent = summary.text;
+  }
+
+  function bindCopyButtons(){
+    if(dom.copySummaryBtn){
+      dom.copySummaryBtn.onclick = async ()=>{
+        try{
+          if(!state.lastSummary) throw new Error('先に集計してください');
+          await copyToClipboard(state.lastSummary.summaryText);
+          App.modal?.info('人数集計をコピーしました');
+          setStatus('人数集計をコピーしました。', false);
+        }catch(e){
+          App.modal?.error('コピーに失敗しました：' + (e.message||e));
+        }
+      };
+    }
+
+    if(dom.copyUndecidedBtn){
+      dom.copyUndecidedBtn.onclick = async ()=>{
+        try{
+          if(!state.lastSummary) throw new Error('先に集計してください');
+          await copyToClipboard(buildCopyUndecided(state.lastSummary.res));
+          App.modal?.info('未定者一覧をコピーしました');
+          setStatus('未定者一覧をコピーしました。', false);
+        }catch(e){
+          App.modal?.error('コピーに失敗しました：' + (e.message||e));
+        }
+      };
+    }
+
+    if(dom.copyUnansweredBtn){
+      dom.copyUnansweredBtn.onclick = async ()=>{
+        try{
+          if(!state.lastSummary) throw new Error('先に集計してください');
+          await copyToClipboard(buildCopyUnanswered(state.lastSummary.res));
+          App.modal?.info('未回答者一覧をコピーしました');
+          setStatus('未回答者一覧をコピーしました。', false);
+        }catch(e){
+          App.modal?.error('コピーに失敗しました：' + (e.message||e));
+        }
+      };
+    }
+
+    if(dom.copyNeedBtn){
+      dom.copyNeedBtn.onclick = async ()=>{
+        try{
+          if(!state.lastSummary) throw new Error('先に集計してください');
+          const { res, atStr, title } = state.lastSummary;
+          await copyToClipboard(buildCopyNeed(res, atStr, title));
+          App.modal?.info('未定者・未回答者をコピーしました');
+          setStatus('未定者・未回答者をコピーしました。', false);
+        }catch(e){
+          App.modal?.error('コピーに失敗しました：' + (e.message||e));
+        }
+      };
+    }
+  }
+
+  // =====================
+  // Import helpers
+  // =====================
+  async function loadDbSheets(){
+    setStatus('参加者DB一覧を取得中...', true);
+
+    const res = await Promise.race([
+      callServer('api_listParticipantDbSheets', {}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('タイムアウト（15秒）')),15000))
+    ]);
+
+    if(res == null) throw new Error('サーバー応答が空です（null）');
+    if(res.ok !== true) throw new Error(res.message || 'サーバーが ok:false を返しました');
+
+    const sheets = Array.isArray(res.sheets) ? res.sheets : [];
+    dom.dbSheetSel.innerHTML = optHTML(sheets);
+
+    setStatus('参加者DB一覧を取得しました。', false);
+    return sheets;
+  }
+
+  function renderImportListTable(participants){
+    if(!dom.importList) return;
+
+    if(!participants || participants.length===0){
+      dom.importList.innerHTML = emptyBox('参加者がいません（集計後に参加者がいる場合のみインポートできます）');
+      return;
+    }
+
+    const rows = participants.map((p, idx)=>`
+      <tr>
+        <td data-label="#">${idx+1}</td>
+        <td data-label="名前">${esc(p.name)}</td>
+        <td data-label="よさ名">${esc(p.yosana)}</td>
+        <td data-label="性別">${esc(p.gender||'')}</td>
+        <td data-label="参加区分">${esc(p.attendType||'')}</td>
+        <td data-label="登録区分">
+          <select data-regtype="${idx}">
+            <option value="正規" selected>正規</option>
+            <option value="限定">限定</option>
+          </select>
+        </td>
+      </tr>
+    `).join('');
+
+    dom.importList.innerHTML = `
+      <div class="importTableWrap">
+        <table class="rtbl no-stack importTight">
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th class="col-name">名前</th>
+              <th class="col-yosa">よさ名</th>
+              <th class="col-gender">性別</th>
+              <th class="col-type">参加区分</th>
+              <th class="col-reg">登録区分</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function buildImportPayload(){
+    if(!state.lastAgg || !(state.lastAgg.participants||[]).length) throw new Error('参加者がいません。先に集計してください。');
+    const dest = (dom.dbSheetSel.value||'').trim();
+    if(!dest) throw new Error('インポート先シートを選択してください');
+
+    const participants = state.lastAgg.participants || [];
+    const selects = dom.importList.querySelectorAll('select[data-regtype]');
+
+    const regMap = new Map();
+    selects.forEach(sel=>{
+      regMap.set(Number(sel.dataset.regtype), String(sel.value||'正規'));
+    });
+
+    const rows = participants.map((p, idx)=>({
+      name: p.name,
+      yosana: p.yosana,
+      gender: p.gender || '',
+      attendType: p.attendType || '',
+      regType: regMap.get(idx) || '正規'
+    }));
+
+    return { destSheetName: dest, rows };
+  }
+
+  // =====================
+  // Data loaders
+  // =====================
+  async function loadInitial(){
+    setStatus('画面を準備中...', true);
+
+    const [eventsRes, mastersRes] = await Promise.all([
+      callWithTimeout('api_listAttendanceEventSheets', {}, 15000, 'イベント一覧'),
+      callWithTimeout('api_listDancerMasterSheets', {}, 15000, 'マスタ一覧'),
+    ]);
+
+    if (!eventsRes || eventsRes.ok !== true) throw new Error(eventsRes?.message || 'イベント一覧取得に失敗しました');
+    if (!mastersRes || mastersRes.ok !== true) throw new Error(mastersRes?.message || 'マスタ一覧取得に失敗しました');
+
+    const events = eventsRes.data || [];
+    const masters = mastersRes.data || [];
+
+    dom.eventSel.innerHTML = optHTML(events);
+    dom.masterSel.innerHTML = optHTML(masters);
+
+    const prefer = (masters||[]).find(x=>String(x).includes('踊り子一覧') && String(x).includes('関東'));
+    if(prefer) dom.masterSel.value = prefer;
+
+    setColsEmpty();
+    setStatus('イベントを選択してください。', false);
+  }
+
+  async function loadHeadersForSelectedEvent(){
+    const sheetName = (dom.eventSel.value||'').trim();
+    if(!sheetName){
+      state.headersCache = [];
+      setColsEmpty();
+      return;
+    }
+
+    setStatus('ヘッダを取得中...', true);
+
+    const res = await callWithTimeout('api_getSheetHeadersRow1', { sheetName }, 15000, 'ヘッダ取得');
+    if(!res || !res.ok) throw new Error(res?.message || 'ヘッダ取得に失敗しました');
+
+    state.headersCache = res.data || [];
+    const html = headerOpt(state.headersCache);
+
+    [dom.colTs,dom.colName,dom.colYosana,dom.colGender,dom.colAttend,dom.colUndecided].forEach(el=> el.innerHTML = html);
+
+    dom.colTs.value        = guess(state.headersCache, ['タイムスタンプ']) || '';
+    dom.colName.value      = guess(state.headersCache, ['名前','氏名']) || '';
+    dom.colYosana.value    = guess(state.headersCache, ['よさ名']) || '';
+    dom.colGender.value    = guess(state.headersCache, ['性別']) || '';
+    dom.colAttend.value    = guess(state.headersCache, ['参加可否','出欠','参加区分','区分']) || '';
+    dom.colUndecided.value = guess(state.headersCache, ['未定']) || '';
+
+    setStatus('列を確認して「集計」を押してください。', false);
+  }
+
+  function buildAggPayload(){
+    const ev = (dom.eventSel.value||'').trim();
+    const ms = (dom.masterSel.value||'').trim();
+    if(!ev) throw new Error('イベントを選択してください');
+    if(!ms) throw new Error('マスタを選択してください');
+
+    const cols = {
+      ts: Number(dom.colTs.value||0),
+      name: Number(dom.colName.value||0),
+      yosana: Number(dom.colYosana.value||0),
+      gender: Number(dom.colGender.value||0),
+      attend: Number(dom.colAttend.value||0),
+      undecided: Number(dom.colUndecided.value||0),
+    };
+
+    if(!cols.ts || !cols.name || !cols.yosana || !cols.attend){
+      throw new Error('必須列（タイムスタンプ/名前/よさ名/参加可否）を選択してください');
+    }
+
+    return { eventSheetName: ev, masterSheetName: ms, cols };
+  }
+
+  // =====================
+  // Actions
+  // =====================
+  async function doAggregate(payload){
+    setStatus('集計中...', true);
+    setDisabled({ runBtn:true, importOpen:true });
+
+    const res = await Promise.race([
+      callServer('api_aggregateAttendance', payload),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('タイムアウト（60秒）')),60000))
+    ]);
+
+    if(!res || !res.ok) throw new Error(res?.message || '集計に失敗しました');
+
+    state.lastAgg = res;
+
+    renderSummary(res);
+    renderAgg(res);
+
+    setStatus(`集計完了（マスタ${res.summary?.totalMaster||0}名 / 回答あり${res.summary?.totalAnswered||0}名）`, false);
+  }
+
+  async function doOpenImport(){
+    await loadDbSheets();
+    renderImportListTable(state.lastAgg?.participants || []);
+    openModal(dom.importModal);
+    setStatus('インポート設定を行ってください。', false);
+  }
+
+  async function doReloadDbSheets(){
+    await loadDbSheets();
+    setImpStatus('一覧を更新しました。', false);
+  }
+
+  async function doImport(){
+    const destCheck = (dom.dbSheetSel?.value || '').trim();
+    if(!destCheck){
+      App.modal?.warn('インポート先のシートを選択してください。');
+      return;
+    }
+    
+    state.pendingImport = buildImportPayload();
+
+    const count = state.pendingImport.rows.length;
+    const dest = state.pendingImport.destSheetName;
+    const cntReg = state.pendingImport.rows.filter(r=>r.regType==='正規').length;
+    const cntLim = state.pendingImport.rows.filter(r=>r.regType==='限定').length;
+
+    const msg =
+      `インポート先：${dest}\n件数：${count}件\n（正規：${cntReg} / 限定：${cntLim}）`;
+
+    const ok = await App.modal?.confirm(msg, {
+      title: 'この内容でインポートします。よろしいですか？',
+      okText: 'はい',
+      cancelText: 'いいえ'
+    });
+    if(!ok) return;
+
+    if(!state.pendingImport) return;
+    setImpStatus('インポート中...', true);
+
+    App.busy?.show('参加者DBへ反映しています。\nしばらくお待ちください。', { title: 'インポート中です…' });
+    try{
+      const res = await callWithTimeout('api_importParticipants', state.pendingImport, 60000);
+      if(!res || !res.ok) throw new Error(res?.message || 'インポートに失敗しました');
+
+      setImpStatus('インポートが完了しました。', false);
+      App.modal?.info(res.message || 'インポートが完了しました');
+
+      state.pendingImport = null;
+      closeModal(dom.importModal);
+      setStatus('インポート完了。', false);
+    } finally {
+      App.busy?.hide();
+    }
+  }
+
+  async function doCreateSheet(){
+    const name = (dom.nsName.value||'').trim();
+    if(!name) return App.modal?.warn('シート名を入力してください');
+
+    setImpStatus('作成中...', true);
+    dom.nsCreate.disabled = true;
+
+    App.busy?.show('参加者DBにシートを作成しています。\nしばらくお待ちください。', { title: '作成中です…' });
+    try{
+      const res = await callWithTimeout('api_createParticipantsDbSheet', { sheetName:name }, 30000);
+      if(!res || !res.ok) throw new Error(res?.message || '作成に失敗しました');
+
+      App.modal?.info('作成しました：' + name);
+      closeModal(dom.newSheetModal);
+
+      await loadDbSheets();
+      dom.dbSheetSel.value = name;
+
+      setImpStatus('作成が完了しました。', false);
+
+    } catch(e){
+      console.error(e);
+      setImpStatus('作成に失敗しました：' + (e.message||e), false);
+      App.modal?.error('作成に失敗しました：' + (e.message||e));
+    } finally {
+      App.busy?.hide();
+      dom.nsCreate.disabled = false;
+    }
+  }
+
+  // =====================
+  // Wire events
+  // =====================
+  dom.eventSel.onchange = async ()=>{
+    App.busy?.show('ヘッダを取得中...\nしばらくお待ちください。', { title: '取得中...' });
+    try{
+      await loadHeadersForSelectedEvent();
+    }catch(e){
+      console.error(e);
+      setStatus('ヘッダ取得に失敗しました：' + (e.message||e), false);
+      App.modal?.error('ヘッダ取得に失敗しました：' + (e.message||e));
+    }finally{
+      App.busy?.hide();
+    }
+  };
+
+  dom.runBtn.onclick = async ()=>{
+    try{
+      state.pendingAgg = buildAggPayload();
+      const msg = `イベント：${state.pendingAgg.eventSheetName}\nマスタ：${state.pendingAgg.masterSheetName}`;
+      const ok = await App.modal?.confirm(msg, {
+        title: 'この内容で集計します。よろしいですか？',
+        okText: 'はい',
+        cancelText: 'いいえ'
+      });
+      if(!ok) { state.pendingAgg = null; return; }
+
+      App.busy?.show('回答データとマスタを突合しています。\nしばらくお待ちください。', { title: '集計中です…' });
+      try{
+        await doAggregate(state.pendingAgg);
+      }catch(e){
+        console.error(e);
+        setStatus('集計に失敗しました：' + (e.message||e), false);
+        App.modal?.error('集計に失敗しました：' + (e.message||e));
+      }finally{
+        App.busy?.hide();
+        setDisabled({ runBtn:false, importOpen:false });
+      }
+    }catch(e){
+      App.modal?.warn(e.message||String(e));
+    }
+  };
+
+  dom.importOpen.onclick = async ()=>{
+    App.busy?.show('参加者DBを読み込み中...\nしばらくお待ちください。', { title: '読み込み中...' });
+    try{
+      await doOpenImport();
+    }catch(e){
+      console.error(e);
+      setStatus('処理に失敗しました：' + (e.message||e), false);
+      App.modal?.error('処理に失敗しました：' + (e.message||e));
+    }finally{
+      App.busy?.hide();
+    }
+  };
+
+  dom.dbReload.onclick = async ()=>{
+    try{
+      await doReloadDbSheets();
+    }catch(e){
+      App.modal?.error('一覧更新に失敗しました：' + (e.message||e));
+    }
+  };
+
+  dom.imClose.onclick = ()=>closeModal(dom.importModal);
+
+  dom.imRun.onclick = ()=>{
+    try{
+      doImport();
+    }catch(e){
+      App.modal?.warn(e.message||String(e));
+    }
+  };
+
+  // import confirm は App.modal に統一
+
+  dom.newSheetOpen.onclick = ()=>{ dom.nsName.value=''; openModal(dom.newSheetModal); };
+  dom.nsClose.onclick = ()=>closeModal(dom.newSheetModal);
+  dom.nsCreate.onclick = doCreateSheet;
+
+  // Copy buttons are static binding
+  bindCopyButtons();
+
+  // =====================
+  // Init
+  // =====================
+  (async ()=>{
+    try{
+      await loadInitial();
+    }catch(e){
+      console.error(e);
+      setStatus('画面の読み込みに失敗しました：' + (e.message||e), false);
+      App.modal?.error('画面の読み込みに失敗しました：' + (e.message||e));
+    }
+  })();
+};
+</script>

@@ -1,0 +1,543 @@
+<section class="card">
+  <h1>出欠フォーム作成</h1>
+  <p>入力内容に応じてGoogleフォームを作成します。</p>
+  <div class="notice" id="createStatus">未作成</div>
+</section>
+
+<section class="card">
+  <h2>祭り基本情報</h2>
+
+  <div class="grid">
+    <div class="field">
+      <div class="label">イベント名（必須）</div>
+      <input id="b_eventName" placeholder="例：どまつり2026" />
+    </div>
+
+    <div class="field">
+      <div class="label">開催場所</div>
+      <input id="b_place" placeholder="例：〇〇公園" />
+    </div>
+
+    <div class="field">
+      <div class="label">開催日（From）</div>
+      <input id="b_dateFrom" type="date" />
+    </div>
+
+    <div class="field">
+      <div class="label">開催日（To）</div>
+      <input id="b_dateTo" type="date" disabled/>
+    </div>
+
+    <div class="field">
+      <div class="label">回答期限</div>
+      <input id="b_deadline" type="date" />
+    </div>
+
+    <div class="field">
+      <div class="label">練習日</div>
+      <textarea id="b_practice" rows="3" placeholder="例：
+2/3(土) 18:00-21:00
+2/10(土) 18:00-21:00"></textarea>
+    </div>
+
+    <div class="field">
+      <div class="label">参加条件</div>
+      <textarea id="b_condition" rows="4" placeholder="例：
+絶対練に参加すること
+※練習に参加できず当イベントに参加したい人は、練習班長のやんやんと相談して許可を得てください。"></textarea>
+    </div>
+
+    <!-- <div class="field">
+      <div class="label">回答期限日の通知</div>
+      <select id="b_notify">
+        <option value="true">通知する</option>
+        <option value="false" selected>通知しない</option>
+      </select>
+    </div> -->
+    <input type="hidden" id="b_notify" value="false">
+  </div>
+</section>
+
+<section class="card">
+  <h2>フォーム内容（最大20行）</h2>
+  <p>「質問内容」「質問タイプ」は入力がある行のみ必須扱いです（空行は無視）。</p>
+
+  <!-- テンプレボタン：表の上 -->
+  <div class="btn-row" style="margin: 8px 0 12px; align-items:center; gap:10px;">
+    <button class="btn" id="fw_templateBtn" type="button">質問テンプレを入力</button>
+  </div>
+
+
+  <div style="overflow:auto; border:1px solid var(--line); border-radius:14px;">
+    <table style="width:100%; border-collapse:collapse; min-width:980px;">
+      <thead>
+        <tr style="background: rgba(9,13,21,.5);">
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">#</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">質問内容（必須）</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">質問タイプ（必須）</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap;">必須</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">説明</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">選択肢1</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">選択肢2</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">選択肢3</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">選択肢4</th>
+          <th style="padding:10px; border-bottom:1px solid var(--line); text-align:left;">選択肢5</th>
+        </tr>
+      </thead>
+      <tbody id="q_tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="btn-row" style="margin-top:20px; flex-direction:column; align-items:center; gap:10px;">
+    <button class="btn btn-primary" id="fw_createBtn" type="button">フォームを作成する</button>
+  </div>
+
+  <div class="notice" style="margin-top:12px;">
+    作成後に「編集用リンク」「回答用リンク」を表示します。
+  </div>
+
+  <div class="card" id="resultCard" style="display:none; padding:12px; margin-top:12px;">
+    <h2>作成結果</h2>
+
+    <div class="field">
+      <div class="label">編集用リンク</div>
+      <a id="r_editUrl_link" href="#" target="_blank" rel="noopener noreferrer"
+         style="word-break: break-all; color: var(--accent); text-decoration: underline;">
+        編集用フォームを開く
+      </a>
+      <input id="r_editUrl" type="hidden" />
+      <div class="btn-row">
+        <button class="btn secondary" id="fw_copyEditBtn" type="button">リンクをコピー</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="label">回答用リンク</div>
+      <a id="r_publishedUrl_link" href="#" target="_blank" rel="noopener noreferrer"
+         style="word-break: break-all; color: var(--accent); text-decoration: underline;">
+        回答フォームを開く
+      </a>
+      <input id="r_publishedUrl" type="hidden" />
+      <div class="btn-row">
+        <button class="btn secondary" id="fw_copyPubBtn" type="button">リンクをコピー</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  window.formWizardInit = function formWizardInit(){
+    const App = window.App || {};
+    // ===== DOM取得（毎回取り直す：SPAで差し替えられるため） =====
+    const $ = (sel)=>document.querySelector(sel);
+
+    const statusEl = $('#createStatus');
+    const tbody = $('#q_tbody');
+    const resultCard = $('#resultCard');
+
+    const btnTemplate = $('#fw_templateBtn');
+    const btnCreate = $('#fw_createBtn');
+    const btnCopyEdit = $('#fw_copyEditBtn');
+    const btnCopyPub = $('#fw_copyPubBtn');
+
+    const basic = {
+      eventName: $('#b_eventName'),
+      place: $('#b_place'),
+      dateFrom: $('#b_dateFrom'),
+      dateTo: $('#b_dateTo'),
+      deadline: $('#b_deadline'),
+      practice: $('#b_practice'),
+      condition: $('#b_condition'),
+      notify: $('#b_notify'),
+    };
+
+    const result = {
+      editLink: $('#r_editUrl_link'),
+      editHidden: $('#r_editUrl'),
+      pubLink: $('#r_publishedUrl_link'),
+      pubHidden: $('#r_publishedUrl'),
+    };
+
+    // 必須DOMが無いなら何もしない
+    if(!statusEl || !tbody || !btnTemplate || !btnCreate) return;
+
+    // ===== 多重初期化防止（このページのルートにフラグ）=====
+    // 注：page内に id を一つ増やすのが理想だが、無いので createStatus を基準にする
+    if (statusEl.dataset.inited === '1') return;
+    statusEl.dataset.inited = '1';
+
+    // ===== 定数 =====
+    const QUESTION_ROWS_MAX = 20;
+    const TYPE_OPTIONS = ['記述式（短文）','段落','ラジオボタン','チェックボックス','プルダウン','日付','時刻'];
+
+    const TEMPLATE_ROWS = [
+      { title:'イベント参加条件を確認してください。', type:'チェックボックス', required:true, help:'', opt1:'確認した' },
+      { title:'入力回数', type:'ラジオボタン', required:true, help:'', opt1:'初回', opt2:'2回目以降' },
+      { title:'名前（姓名）', type:'記述式（短文）', required:true, help:'' },
+      { title:'よさ名', type:'記述式（短文）', required:true, help:'' },
+      { title:'性別', type:'ラジオボタン', required:true, help:'', opt1:'男性', opt2:'女性' },
+      { title:'参加可否', type:'ラジオボタン', required:true, help:'', opt1:'踊り子として参加', opt2:'スタッフとして参加', opt3:'不参加', opt4:'未定' },
+      { title:'【未定の方へ】\nいつ頃分かりますか', type:'記述式（短文）', required:false, help:'' },
+      { title:'その他何かあればご記入ください', type:'記述式（短文）', required:false, help:'' }
+    ];
+
+    // ===== callServer 存在チェック =====
+    if (typeof callServer !== 'function') {
+      statusEl.textContent = 'エラー：callServer が見つかりません（script.jsを確認してください）';
+      return;
+    }
+
+    // ===== UIヘルパ =====
+    function setStatus(text, busy){
+      if (App.setStatus) return App.setStatus(statusEl, text, busy);
+      statusEl.textContent = text;
+      statusEl.style.borderColor = busy ? 'rgba(78,161,255,.55)' : 'var(--line)';
+    }
+    function showBusy(){
+      if (App.busy) return App.busy.show('出欠フォームを作成しています。\nしばらくお待ちください。', { title: '作成中...' });
+    }
+    function hideBusy(){
+      if (App.busy) return App.busy.hide();
+    }
+
+    // ===== 表UI =====
+    function renderQuestionRows(){
+      tbody.innerHTML = '';
+      for(let i=1;i<=QUESTION_ROWS_MAX;i++){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding:8px; border-bottom:1px solid var(--line); color:var(--muted);">${i}</td>
+          <td style="padding:8px; border-bottom:1px solid var(--line);">
+            <input data-k="title" data-i="${i}" placeholder="質問内容" style="width:260px;">
+          </td>
+          <td style="padding:8px; border-bottom:1px solid var(--line);">
+            <select data-k="type" data-i="${i}" style="width:180px;">
+              <option value=""></option>
+              ${TYPE_OPTIONS.map(t=>`<option value="${t}">${t}</option>`).join('')}
+            </select>
+          </td>
+          <td style="padding:8px; border-bottom:1px solid var(--line); text-align:center;">
+            <input
+              type="checkbox"
+              data-k="required"
+              data-i="${i}"
+              style="transform:scale(1.2)"
+              title="必須にする"
+            >
+          </td>
+          <td style="padding:8px; border-bottom:1px solid var(--line);">
+            <input data-k="help" data-i="${i}" placeholder="説明" style="width:220px;">
+          </td>
+          ${[1,2,3,4,5].map(n=>`
+            <td style="padding:8px; border-bottom:1px solid var(--line);">
+              <input data-k="opt${n}" data-i="${i}" placeholder="選択肢${n}" style="width:170px;">
+            </td>
+          `).join('')}
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function qGet(i,k){
+      const n = document.querySelector(`[data-k="${k}"][data-i="${i}"]`);
+      return n ? n.value : '';
+    }
+    function qSet(i,k,v){
+      const n = document.querySelector(`[data-k="${k}"][data-i="${i}"]`);
+      if(n) n.value = v ?? '';
+    }
+    function setRow(i,row){
+      qSet(i,'title',row.title);
+      qSet(i,'type',row.type);
+      const req = document.querySelector(`[data-k="required"][data-i="${i}"]`);
+      if (req) req.checked = !!row.required;
+      qSet(i,'help',row.help || '');
+      qSet(i,'opt1',row.opt1 || '');
+      qSet(i,'opt2',row.opt2 || '');
+      qSet(i,'opt3',row.opt3 || '');
+      qSet(i,'opt4',row.opt4 || '');
+      qSet(i,'opt5',row.opt5 || '');
+    }
+    function getRows(){
+      const rows = [];
+      for(let i=1;i<=QUESTION_ROWS_MAX;i++){
+        rows.push({
+          title: qGet(i,'title'),
+          type: qGet(i,'type'),
+          required: (() => {
+            const el = document.querySelector(`[data-k="required"][data-i="${i}"]`);
+            return !!el?.checked;
+          })(),
+          help: qGet(i,'help'),
+          opt1: qGet(i,'opt1'),
+          opt2: qGet(i,'opt2'),
+          opt3: qGet(i,'opt3'),
+          opt4: qGet(i,'opt4'),
+          opt5: qGet(i,'opt5'),
+        });
+      }
+      return rows;
+    }
+
+    // ===== 入力補助（blur）=====
+    function showFieldWarn(inputEl, msg){
+      const id = inputEl.id + '_warn';
+      let w = document.getElementById(id);
+      if(!w){
+        w = document.createElement('div');
+        w.id = id;
+        w.style.marginTop = '6px';
+        w.style.fontSize = '12px';
+        w.style.color = '#ffb4b4';
+        inputEl.parentElement.appendChild(w);
+      }
+      w.textContent = msg || '';
+      inputEl.style.borderColor = msg ? 'rgba(255,120,120,.75)' : '';
+    }
+    function clearFieldWarn(inputEl){ showFieldWarn(inputEl,''); }
+
+    function parseISODate(iso){
+      if(!iso) return null;
+      const d = new Date(iso + 'T00:00:00');
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function bindBasicFieldBehaviors(){
+      const e = basic.eventName;
+      const fromEl = basic.dateFrom;
+      const toEl = basic.dateTo;
+      const deadlineEl = basic.deadline;
+
+      if(!e || !fromEl || !toEl || !deadlineEl) return;
+
+      // 初期：Toは入力不可
+      toEl.disabled = true;
+
+      e.onblur = () => {
+        const v = (e.value || '').trim();
+        if(!v) showFieldWarn(e,'イベント名は必須です。');
+        else clearFieldWarn(e);
+      };
+
+      fromEl.onblur = () => {
+        const from = parseISODate(fromEl.value);
+        if(!from){
+          toEl.value = '';
+          toEl.disabled = true;
+          clearFieldWarn(fromEl);
+          clearFieldWarn(toEl);
+          return;
+        }
+        toEl.disabled = false;
+        if(!toEl.value) toEl.value = fromEl.value;
+        const to = parseISODate(toEl.value);
+        if(to.getTime() < from.getTime()) {
+          showFieldWarn(fromEl,'開催日(From)は開催日(To)以前にしてください。');
+        }
+        else {
+          clearFieldWarn(fromEl);
+          clearFieldWarn(toEl);
+        }
+      };
+
+      toEl.onblur = () => {
+        if(toEl.disabled) return;
+        const from = parseISODate(fromEl.value);
+        const to = parseISODate(toEl.value);
+        if(!to || !from){ clearFieldWarn(toEl); return; }
+        if(to.getTime() < from.getTime()) {
+          showFieldWarn(toEl,'開催日(To)は開催日(From)以降にしてください。');
+        }
+        else {
+          clearFieldWarn(fromEl);
+          clearFieldWarn(toEl);
+        }
+      };
+
+      deadlineEl.onblur = () => {
+        const from = parseISODate(fromEl.value);
+        const dl = parseISODate(deadlineEl.value);
+        if(!dl || !from){ clearFieldWarn(deadlineEl); return; }
+        if(dl.getTime() > from.getTime()) showFieldWarn(deadlineEl,'回答期限は開催日(From)以前の日付にしてください。');
+        else clearFieldWarn(deadlineEl);
+      };
+    }
+
+    // ===== 取得・検証 =====
+    function getBasic(){
+      return {
+        eventName: basic.eventName?.value,
+        dateFrom: basic.dateFrom?.value || null,
+        dateTo: basic.dateTo?.value || null,
+        place: basic.place?.value,
+        deadline: basic.deadline?.value || null,
+        practice: basic.practice?.value,
+        condition: basic.condition?.value,
+        notify: basic.notify?.value === 'true'
+      };
+    }
+
+    function validateClient(b){
+      const name = (b.eventName || '').trim();
+      if(!name) return 'イベント名は必須です。';
+
+      if(b.dateFrom && b.dateTo){
+        const f = new Date(b.dateFrom).getTime();
+        const t = new Date(b.dateTo).getTime();
+        if(f > t) return '開催日のFrom/Toが不正です（From <= To にしてください）。';
+      }
+      if(b.deadline && b.dateFrom){
+        const d = new Date(b.deadline).getTime();
+        const f = new Date(b.dateFrom).getTime();
+        if(d > f) return '回答期限は開催日(From)以前の日付にしてください。';
+      }
+      return null;
+    }
+
+    // ===== クリップボード =====
+    async function copyValueFromHidden(hiddenEl){
+      const text = (hiddenEl?.value || '').trim();
+      if(!text) return App.modal?.warn('コピーする内容がありません');
+
+      try{
+        if (App.copyToClipboard) await App.copyToClipboard(text);
+        else {
+          if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+          else{
+            const tmp = document.createElement('textarea');
+            tmp.value = text;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand('copy');
+            document.body.removeChild(tmp);
+          }
+        }
+        App.modal?.info('コピーしました');
+      }catch(e){
+        console.error(e);
+        App.modal?.error('コピーに失敗しました');
+      }
+    }
+
+    // ===== ボタン処理 =====
+    function applyTemplate(){
+      for(let i=1;i<=QUESTION_ROWS_MAX;i++){
+        const row = TEMPLATE_ROWS[i-1];
+        if(!row) continue;
+        setRow(i,row);
+      }
+      setStatus('テンプレを反映しました。', false);
+      const first = document.querySelector('[data-k="title"][data-i="1"]');
+      if(first) first.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+
+    function buildConfirmText(b, rows){
+      const lines = [];
+      lines.push('■祭り基本情報');
+      lines.push(`・イベント名：${b.eventName || ''}`);
+      lines.push(`・開催場所：${b.place || ''}`);
+      lines.push(`・開催日：${b.dateFrom || ''} 〜 ${b.dateTo || ''}`);
+      lines.push(`・回答期限：${b.deadline || ''}`);
+      lines.push(`・練習日\n${b.practice || ''}`);
+      lines.push(`・参加条件\n${b.condition || ''}`);
+      lines.push('');
+      lines.push('■フォーム内容');
+
+      const filled = (rows || [])
+        .map((r, i)=>({ ...r, _i: i + 1 }))
+        .filter(r => {
+          const hasText = [r.title, r.type, r.help, r.opt1, r.opt2, r.opt3, r.opt4, r.opt5]
+            .some(v => String(v || '').trim());
+          return hasText || !!r.required;
+        });
+
+      if(!filled.length){
+        lines.push('（質問なし）');
+      }else{
+        filled.forEach(r=>{
+          const opts = [r.opt1, r.opt2, r.opt3, r.opt4, r.opt5]
+            .map(v => String(v || '').trim())
+            .filter(Boolean);
+          const parts = [
+            `質問：${r.title || ''}`,
+            r.type ? `タイプ：${r.type}` : '',
+            r.required ? '必須' : '',
+            opts.length ? `選択肢：${opts.join(', ')}` : '',
+            r.help ? `説明：${r.help}` : ''
+          ].filter(Boolean);
+          lines.push(`[${r._i}] ${parts.join(' / ')}`);
+        });
+      }
+      return lines.join('\n');
+    }
+
+    async function createForm(){
+      const b = getBasic();
+      const err = validateClient(b);
+      if(err) return App.modal?.warn(err);
+
+      const rows = getRows();
+      const confirmText = buildConfirmText(b, rows);
+      const ok = await App.modal?.confirm(confirmText, {
+        title: 'この内容で作成します。よろしいですか？',
+        okText: 'はい',
+        cancelText: 'いいえ'
+      });
+      if(!ok) return;
+
+
+      setStatus('作成中...（フォーム作成・フォルダ移動・回答連携）', true);
+      showBusy();
+
+      try{
+        const payload = { basic: b, rows };
+        const res = await callServer('api_createAttendanceForm', payload);
+
+        if(!res?.ok){
+          hideBusy();
+          setStatus(res?.message || '作成に失敗しました。', false);
+          App.modal?.error(res?.message || '作成に失敗しました。');
+          return;
+        }
+
+        hideBusy();
+        setStatus('作成完了：リンクを確認してください。', false);
+
+        if(resultCard) resultCard.style.display = 'block';
+
+        if(result.editHidden) result.editHidden.value = res.editUrl || '';
+        if(result.editLink) result.editLink.href = res.editUrl || '#';
+
+        if(result.pubHidden) result.pubHidden.value = res.publishedUrl || '';
+        if(result.pubLink) result.pubLink.href = res.publishedUrl || '#';
+
+        App.modal?.info('作成が完了しました');
+      }catch(e){
+        console.error(e);
+        hideBusy();
+        setStatus('作成に失敗しました：' + (e.message || e), false);
+        App.modal?.error('作成に失敗しました：' + (e.message || e));
+      }
+    }
+
+    // ===== 結線（onclickではなく上書きで多重登録防止）=====
+    btnTemplate.onclick = applyTemplate;
+    btnCreate.onclick = createForm;
+    if(btnCopyEdit) btnCopyEdit.onclick = () => copyValueFromHidden(result.editHidden);
+    if(btnCopyPub) btnCopyPub.onclick = () => copyValueFromHidden(result.pubHidden);
+
+    // ===== 初期化実行（init内だけで行う）=====
+    renderQuestionRows();
+    bindBasicFieldBehaviors();
+
+    // 初期表示
+    setStatus('未作成', false);
+    if(resultCard) resultCard.style.display = 'none';
+
+    // Wizardの表示を整える（存在する場合）
+    if (typeof renderWizard === 'function') {
+      try { renderWizard(); } catch(e) { console.error(e); }
+    }
+  };
+</script>
+
