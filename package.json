@@ -1,0 +1,9 @@
+{
+  "name": "my-gas-project",
+  "private": true,
+  "scripts": {
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "deploy": "clasp push && clasp deploy --deploymentId AKfycbxVyqgTf60CBkw_UkQ6DHN5aKMiM2NLWQeZVwPLtd5j6GxyITFHcZEBgCUDnMWcV-Az --description \"update\""
+  }
+}

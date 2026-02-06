@@ -1,10 +1,14 @@
-# OS / Editor
-.DS_Store
+# ---- OS / Editor ----
 Thumbs.db
-.vscode/*
+.DS_Store
 
-# Node (入れるなら)
+# VS Code (共有しない場合)
+.vscode/
+
+# ---- Node (使う場合のみ。claspをグローバルではなくローカル導入したり、lint導入した場合) ----
 node_modules/
 
-# clasp (基本はコミットしてOKだが、嫌なら除外)
-# .clasp.json
+# ---- Logs (任意) ----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
