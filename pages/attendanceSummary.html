@@ -960,7 +960,7 @@ ${atStr} 時点
   };
 
   dom.importOpen.onclick = async ()=>{
-    App.busy?.show('参加者DBを読み込み中...\nしばらくお待ちください。', { title: '読み込み中...' });
+    App.busy?.show('参加者DBを読み込んでいます。\nしばらくお待ちください。', { title: '読み込み中...' });
     try{
       await doOpenImport();
     }catch(e){
