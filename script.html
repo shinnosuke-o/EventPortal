@@ -303,24 +303,59 @@ function renderWizard(){
 }
 
 /* =========================
-   Me (email)
+   Me (avatar + tooltip email)
 ========================= */
 async function initMeEmail(){
+  // const sideEl = document.getElementById('meEmailText');
+  const avatarEl = document.getElementById('meAvatar');
+  const tipEl = document.getElementById('meTooltip');
+
+  // if (sideEl) sideEl.textContent = '（取得中...）';
+  if (tipEl) tipEl.textContent = '';        // ★空ならホバーしても何も出ない
+  if (avatarEl) {
+    avatarEl.hidden = true;
+    avatarEl.removeAttribute('src');
+  }
+
   try{
-    const el = document.getElementById('meEmailText');
-    if(el) el.textContent = '（取得中...）';
     const res = await callServer('api_getMe', {});
     if(res && res.ok){
-      App.meEmail = String(res.email || '').trim();
-      if(el) el.textContent = App.meEmail || '（不明）';
-    }else{
-      if(el) el.textContent = '（取得できません）';
-      console.warn('api_getMe failed:', res);
+      const email = String(res.email || '').trim();
+      const picture = String(res.picture || '').trim();
+
+      App.meEmail = email; // 既存仕様（監査ログ用）
+
+      // サイドメニューは常時表示
+      // if (sideEl) sideEl.textContent = email || '（不明）';
+
+      if (tipEl){
+        if (email){
+          tipEl.innerHTML = `
+            <div class="label">ログイン中：</div>
+            <div class="email">${App.escapeHtml(email)}</div>
+          `;
+        }else{
+          tipEl.textContent = '';
+        }
+      }
+
+      // アイコン
+      if (avatarEl){
+        if (picture){
+          avatarEl.src = picture;
+          avatarEl.hidden = false;
+        } else {
+          avatarEl.hidden = true;
+          avatarEl.removeAttribute('src');
+        }
+      }
+      return;
     }
+
+    // if (sideEl) sideEl.textContent = '（取得できません）';
   }catch(e){
-    const el = document.getElementById('meEmailText');
-    if(el) el.textContent = '（取得できません）';
-    console.warn('initMeEmail error:', e);
+    // if (sideEl) sideEl.textContent = '（取得できません）';
+    console.warn(e);
   }
 }
 

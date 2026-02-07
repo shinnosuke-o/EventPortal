@@ -15,15 +15,25 @@
   <body>
     <header class="app-header">
       <a href="<?= homeUrl ?>" target="_top" class="brand brand-link">
-        <div class="brand-title">イベ班ポータル</div>
-        <div class="brand-sub">Event Portal</div>
+        <img src="https://lh3.googleusercontent.com/d/1s-dJkHqSazwVEBBFWGnSCJIHW9TlCSk3" alt="Event Portal" class="brand-icon">
+        <div class="brand-text">
+          <div class="brand-title">イベ班ポータル</div>
+          <div class="brand-sub">Event Portal</div>
+        </div>
       </a>
 
-      <!-- 右上：ハンバーガー -->
-      <button id="menuBtn" class="menu-btn" aria-label="メニュー" aria-expanded="false" aria-controls="sideMenu">
-        <span class="menu-icon" aria-hidden="true"></span>
-      </button>
 
+      <!-- ★右側コンテナを追加 -->
+      <div class="header-right">
+        <div class="me-chip" id="meChip" aria-label="ログイン中アカウント">
+          <img id="meAvatar" class="me-avatar" alt="" hidden>
+          <div id="meTooltip" class="me-tooltip"></div>
+        </div>
+
+        <button id="menuBtn" class="menu-btn" aria-label="メニュー" aria-expanded="false" aria-controls="sideMenu">
+          <span class="menu-icon" aria-hidden="true"></span>
+        </button>
+      </div>
     </header>
 
     <!-- 右からスライドするサイドメニュー -->
@@ -45,10 +55,10 @@
         <a class="side-item" href="?page=attendanceSummary" data-page="attendanceSummary">出欠集計</a>
       </nav>
     
-      <div class="side-menu-foot" style="margin-top:auto; padding:12px 16px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; overflow-wrap:anywhere; word-break:break-word;">
+      <!-- <div class="side-menu-foot" style="margin-top:auto; padding:12px 16px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; overflow-wrap:anywhere; word-break:break-word;">
         <div>ログイン中：</div>
         <div id="meEmailText" style="margin-top:4px; color:var(--text); font-size:12px;">（取得中...）</div>
-      </div>
+      </div> -->
 
       </aside>
 

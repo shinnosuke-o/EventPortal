@@ -42,8 +42,6 @@ function safeApi_(fn) {
   }
 }
 
-
-
 // yyyy-mm-dd (input[type=date]) を Date(00:00) に
 function parseDateYmd_(s){
   const v = String(s || '').trim();
@@ -354,12 +352,37 @@ function getUserEmail_(){
 
 function api_getMe(){
   return safeApi_(() => {
-    if(!canAccessAllowFolder_()) return { ok:false, message:'アクセス権限がありません。' };
-    const email = getUserEmail_();
-    return { ok:true, email };
+    if(!canAccessAllowFolder_()){
+      return { ok:false, message:'アクセス権限がありません。' };
+    }
+
+    const token = ScriptApp.getOAuthToken();
+    let email = '';
+    let picture = '';
+
+    try{
+      const resp = UrlFetchApp.fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true,
+      });
+
+      if (resp.getResponseCode() >= 200 && resp.getResponseCode() < 300){
+        const obj = JSON.parse(resp.getContentText() || '{}');
+        email = String(obj.email || '');
+        picture = String(obj.picture || '');
+      }
+    }catch(e){}
+
+    // フォールバック（既存ロジック）
+    if(!email) email = getUserEmail_();
+
+    return {
+      ok: true,
+      email,
+      picture, // ← 追加
+    };
   });
 }
-
 
 function getBaseUrl_(){
   return ScriptApp.getService().getUrl();
@@ -415,53 +438,29 @@ function buildServiceWorker_(){
 }
 
 function doGet(e) {
-  if(!canAccessAllowFolder_()){
-    // IMPORTANT:
-    // - Avoid authuser links here. They can trigger script.google.com/accounts recursion and Bad Request 400.
-    // - Use ServiceLogin with prompt=select_account to force account selection.
-    const continueUrl = getBaseUrl_() + '?page=home&ts=' + Date.now();
-    const loginUrl =
-      'https://accounts.google.com/ServiceLogin?service=script&passive=true&prompt=select_account&continue=' +
-      encodeURIComponent(continueUrl);
-    const chooserUrl =
-      'https://accounts.google.com/AccountChooser?service=lso&continue=' + encodeURIComponent(continueUrl);
-    const logoutUrl = 'https://accounts.google.com/Logout?continue=' + encodeURIComponent(continueUrl);
-
+    if (!canAccessAllowFolder_()) {
     return HtmlService.createHtmlOutput(`
-      <div style="font-family:system-ui; padding:24px; line-height:1.7; max-width:720px; margin:0 auto;">
-        <h2 style="margin:0 0 12px;">アクセス権がありません</h2>
-        <p style="margin:0 0 16px;">
-          このWebアプリは指定フォルダにアクセスできるユーザーのみ利用できます。<br>
-          <b>別のGoogleアカウントで開き直す</b>には、下のボタンを押してください。
+      <div style="
+        font-family: system-ui, -apple-system, BlinkMacSystemFont;
+        padding: 32px;
+        max-width: 720px;
+        margin: 0 auto;
+        line-height: 1.8;
+        color: #111;
+      ">
+        <h2 style="margin: 0 0 16px;">アクセス権限がありません</h2>
+
+        <p style="margin: 0 0 12px;">
+          このWebアプリを使用するためには、イベント班フォルダへのアクセス権限が必要です。
         </p>
 
-        <div style="display:flex; gap:12px; flex-wrap:wrap; margin:16px 0 20px;">
-          <a href="${loginUrl}" target="_top"
-             style="display:inline-block; padding:10px 14px; border-radius:10px; background:#111; color:#fff; text-decoration:none;">
-            別のGoogleアカウントで開く（推奨）
-          </a>
-          <a href="${chooserUrl}" target="_top"
-             style="display:inline-block; padding:10px 14px; border-radius:10px; border:1px solid #111; color:#111; text-decoration:none;">
-            アカウント選択画面を開く
-          </a>
-          <a href="${continueUrl}" target="_top"
-             style="display:inline-block; padding:10px 14px; border-radius:10px; border:1px solid #ccc; color:#111; text-decoration:none;">
-            再読み込み
-          </a>
-        </div>
+        <p style="margin: 0 0 12px;">
+          ブラウザにログイン中の Google アカウントを確認して下さい。
+        </p>
 
-        <details style="margin:14px 0;">
-          <summary style="cursor:pointer;">うまく切り替わらない場合</summary>
-          <div style="margin-top:10px;">
-            <div style="margin:8px 0;">
-              <div style="font-size:13px; color:#444;">すべてのGoogleアカウントからサインアウトしてやり直す</div>
-              <div><a href="${logoutUrl}" target="_top">Googleからサインアウトして開き直す</a></div>
-            </div>
-            <div style="margin:8px 0; font-size:13px; color:#444;">
-              ※アカウント選択後も権限エラーになる場合、そのアカウントに指定フォルダの閲覧権限が付与されていません。
-            </div>
-          </div>
-        </details>
+        <p style="margin: 0;">
+          解決しない場合は管理者までお問い合わせ下さい。
+        </p>
       </div>
     `).setTitle('Access Denied');
   }
@@ -485,7 +484,7 @@ function doGet(e) {
   tpl.homeUrl = getPageUrl_('home');
   tpl.manifestUrl = getManifestUrl_();
   tpl.swUrl = getServiceWorkerUrl_();
-  
+
 
   return tpl.evaluate()
     .setTitle('イベ班ポータル(Event Portal)')
