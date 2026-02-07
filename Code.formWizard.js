@@ -116,6 +116,7 @@ function addItemToForm_(form, r) {
 
 function api_createAttendanceForm(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const DEST_SS_ID = CONFIG.MASTER_SS_ID;
     const FOLDER_ID = CONFIG.ATTEND_FORM_FOLDER_ID;
 

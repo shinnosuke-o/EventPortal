@@ -7,8 +7,9 @@ const GUIDE_DETAIL_COLS = 9;
 const GUIDE_PUBLIC_URL_COL = 10;
 const GUIDE_APPEND_COLS = 10;
 
-function api_listGuideEvents() {
+function api_listGuideEvents(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const ss = openSS_(CONFIG.MASTER_SS_ID);
     const sh = mustSheet_(ss, CONFIG.GUIDE_SHEET_NAME);
 
@@ -32,6 +33,7 @@ function api_listGuideEvents() {
 
 function api_getGuideEvent(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const eventName = String(payload?.eventName || '').trim();
     if (!eventName) return { ok: false, message: 'eventName is required', data: null };
 
@@ -129,7 +131,8 @@ function appendEventToGuideTemplate_(params) {
 
   sheet.getRange(appendRow, GUIDE_EVENT_COL, 1, GUIDE_APPEND_COLS).setValues(values);
 }
-
+
+
 
 
 

@@ -11,12 +11,13 @@ function listEventSheets_() {
     .filter(name => !String(name).includes(CONFIG.EXCLUDE_MARK));
 }
 
-function api_listEventSheets() {
+function api_listEventSheets(payload) {
   return safeApi_(() => ({ ok: true, data: listEventSheets_() }));
 }
 
 function api_getSheetHeaders(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const sheetName = payload?.sheetName;
     if (!sheetName) return { ok: false, message: 'sheetName is required' };
 

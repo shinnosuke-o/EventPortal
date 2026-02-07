@@ -5,8 +5,9 @@ const TASK_DATA_START_ROW = 2;
 const TASK_DATA_START_COL = 2;
 const TASK_DATA_COLS = 8;
 
-function api_getTasks() {
+function api_getTasks(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const ss = openSS_(CONFIG.TASK_SS_ID);
     const sh = mustSheet_(ss, CONFIG.TASK_SHEET_NAME);
 
@@ -40,6 +41,7 @@ function api_getTasks() {
 
 function api_upsertTask(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const mode = String(payload?.mode || '').trim();
     const data = payload?.data || {};
 

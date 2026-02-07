@@ -21,8 +21,10 @@ const ACCOUNT_STATUS_DONE = '精算済み';
 const ACCOUNT_PAYDATE_PLACEHOLDER = 'yyyyMMdd';
 const ACCOUNT_FILENAME_MAX = 40;
 
-function api_listExpenses() {
-  const out = { ok:false, message:'', expenses:[] };
+function api_listExpenses(payload) {
+  
+  guard_(payload || {});
+const out = { ok:false, message:'', expenses:[] };
 
   try {
     const ss = openSS_(CONFIG.TASK_SS_ID);
@@ -86,7 +88,9 @@ function api_listExpenses() {
 }
 
 function api_uploadReceipt(payload){
-  try{
+  
+  guard_(payload || {});
+try{
     const mime = String(payload?.mime||'');
     const base64 = String(payload?.base64||'');
     if(!mime || !base64) return { ok:false, message:'file is required' };
@@ -130,7 +134,9 @@ function api_uploadReceipt(payload){
 }
 
 function api_upsertExpense(payload){
-  const out = { ok:false, message:'', rowNumber:null };
+  
+  guard_(payload || {});
+const out = { ok:false, message:'', rowNumber:null };
 
   try{
     const mode = String(payload?.mode || 'create'); // create/edit
@@ -205,7 +211,9 @@ function api_upsertExpense(payload){
 }
 
 function api_bulkUpdateExpenseStatus(payload){
-  try{
+  
+  guard_(payload || {});
+try{
     const rowNumbers = Array.isArray(payload?.rowNumbers) ? payload.rowNumbers : [];
     const newStatus = String(payload?.newStatus || '').trim();
     if(!rowNumbers.length) return { ok:false, message:'rowNumbers is empty' };

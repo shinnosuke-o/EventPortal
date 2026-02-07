@@ -1,12 +1,13 @@
 ﻿/***********************
  * ATTENDANCE SUMMARY
  ***********************/
-function api_listAttendanceEventSheets() {
+function api_listAttendanceEventSheets(payload) {
   return safeApi_(() => ({ ok: true, data: listEventSheets_() }));
 }
 
-function api_listDancerMasterSheets() {
+function api_listDancerMasterSheets(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const ss = openSS_(CONFIG.MASTER_SS_ID);
     const names = ss.getSheets().map(s => s.getName());
     const data = names.filter(n => String(n).startsWith(CONFIG.DANCER_MASTER_PREFIX));
@@ -16,6 +17,7 @@ function api_listDancerMasterSheets() {
 
 function api_getSheetHeadersRow1(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const sheetName = String(payload?.sheetName || '').trim();
     if (!sheetName) return { ok: false, message: 'sheetName is required' };
 
@@ -95,6 +97,7 @@ function levenshteinLE1_(a, b) {
 
 function api_aggregateAttendance(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const eventSheetName  = String(payload?.eventSheetName || '').trim();
     const masterSheetName = String(payload?.masterSheetName || '').trim();
     const cols = payload?.cols || {};
@@ -363,21 +366,23 @@ function updateParticipantsPivot_(ssId, sheetId, endRowIndex) {
   Sheets.Spreadsheets.batchUpdate({ requests }, ssId);
 }
 
-function api_listParticipantDbSheets() {
+function api_listParticipantDbSheets(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const ss = openSS_(CONFIG.PARTICIPANTS_DB_ID);
     return { ok: true, sheets: ss.getSheets().map(s => s.getName()) };
   });
 }
 
 // 互換：古いクライアントが呼ぶ可能性
-function api_listParticipantsDbSheets() {
+function api_listParticipantsDbSheets(payload) {
   const ss = openSS_(CONFIG.PARTICIPANTS_DB_ID);
   return ss.getSheets().map(s => s.getName());
 }
 
 function api_createParticipantsDbSheet(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const sheetName = String(payload?.sheetName || '').trim();
     if (!sheetName) return { ok: false, message: 'sheetName is required' };
 
@@ -429,6 +434,7 @@ function api_createParticipantDbSheet(payload) {
 
 function api_importParticipants(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const destSheetName = String(payload?.destSheetName || '').trim();
     const rows = Array.isArray(payload?.rows) ? payload.rows : [];
 

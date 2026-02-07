@@ -184,6 +184,30 @@ function buildServiceWorker_(){
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
+
+/***********************
+ * SECURITY (minimum)
+ ***********************/
+function issueCsrfToken_(){
+  const token = Utilities.getUuid();
+  // user cache is per-user; keep token for 6 hours
+  CacheService.getUserCache().put('csrf', token, 60 * 60 * 6);
+  return token;
+}
+
+function verifyCsrf_(payload){
+  const p = (payload && typeof payload === 'object') ? payload : {};
+  const token = String(p.__csrf || '');
+  const stored = CacheService.getUserCache().get('csrf');
+  if (!token || !stored || token !== stored) throw new Error('不正なリクエストです（CSRF）');
+}
+
+function guard_(payload){
+  if (!canAccessAllowFolder_()) throw new Error('アクセス権がありません');
+  verifyCsrf_(payload);
+}
+
+
 function doGet(e) {
   if(!canAccessAllowFolder_()){
     return HtmlService.createHtmlOutput(`
@@ -206,6 +230,7 @@ function doGet(e) {
 
   const tpl = HtmlService.createTemplateFromFile('Index');
   tpl.page = page;
+  tpl.csrf = issueCsrfToken_();
   const faviconUrl = CONFIG.APP_ICON_URL;
   // iOSホーム画面アイコンは apple-touch-icon を優先する
   // const appleTouchIconUrl = 'https://drive.google.com/uc?export=view&id=1s-dJkHqSazwVEBBFWGnSCJIHW9TlCSk3';
@@ -221,7 +246,7 @@ function doGet(e) {
   return tpl.evaluate()
     .setTitle('イベ班ポータル(Event Portal)')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
     .setFaviconUrl(faviconUrl);
 }
 
@@ -229,14 +254,26 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-function api_getPageHtml(page) {
+
+function api_getPageHtml(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const allowed = ['home', 'formWizard', 'publicSheet', 'noticeTemplate', 'attendanceSummary', 'task', 'accounting'];
+    const page = String(payload?.page || payload?.value || 'home');
     const p = allowed.includes(page) ? page : 'home';
+
+    const cache = CacheService.getScriptCache();
+    const key = 'pageHtml:v2:' + p;
+    const cached = cache.get(key);
+    if (cached) return { ok: true, data: cached };
+
     const html = HtmlService.createHtmlOutputFromFile('pages/' + p).getContent();
+    cache.put(key, html, 60 * 60 * 6); // 6h
     return { ok: true, data: html };
   });
 }
+
+
 
 function getPageUrl_(page) {
   const base = ScriptApp.getService().getUrl();
@@ -246,7 +283,8 @@ function getPageUrl_(page) {
 
 /***********************
  * DRIVE (Advanced Service)
- ***********************/
+ ***********************/
+
 
 function requireDrive_() {
   if (typeof Drive === 'undefined') {
@@ -277,10 +315,12 @@ function moveFileToFolder_(fileId, folderId) {
     }
   );
 }
-
 
 
-// tokeninfo で検証（最短・堅牢）
+
+
+// tokeninfo で検証（最短・堅牢）
+
 
 
 

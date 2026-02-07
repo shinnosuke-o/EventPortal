@@ -8,6 +8,7 @@ const PUBLIC_COL_PREFIX = 'Col';
 
 function api_createPublicCheckSheet(payload) {
   return safeApi_(() => {
+    guard_(payload || {});
     const sheetName = payload?.sheetName;
     const includeCols = payload?.includeCols || [];
     if (!sheetName) throw new Error('シート選択は必須です。');
