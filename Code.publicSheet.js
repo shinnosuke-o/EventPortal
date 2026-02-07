@@ -1,4 +1,4 @@
-/***********************
+﻿/***********************
  * PUBLIC CHECK SHEET
  ***********************/
 const PUBLIC_SHEET_SUFFIX = '出欠確認_公開用';
@@ -50,7 +50,7 @@ function api_createPublicCheckSheet(payload) {
       url: destUrl,
       message: '作成しました。初回は「アクセスを許可」が必要です。'
     };
-    });
+  });
   });
 }
 

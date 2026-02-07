@@ -1,4 +1,4 @@
-﻿<script>
+<script>
 /* =========================
    App Utils (shared)
 ========================= */
@@ -303,9 +303,34 @@ function renderWizard(){
 }
 
 /* =========================
+   Me (email)
+========================= */
+async function initMeEmail(){
+  try{
+    const el = document.getElementById('meEmailText');
+    if(el) el.textContent = '（取得中...）';
+    const res = await callServer('api_getMe', {});
+    if(res && res.ok){
+      App.meEmail = String(res.email || '').trim();
+      if(el) el.textContent = App.meEmail || '（不明）';
+    }else{
+      if(el) el.textContent = '（取得できません）';
+      console.warn('api_getMe failed:', res);
+    }
+  }catch(e){
+    const el = document.getElementById('meEmailText');
+    if(el) el.textContent = '（取得できません）';
+    console.warn('initMeEmail error:', e);
+  }
+}
+
+/* =========================
    Server Call
 ========================= */
 function callServer(fn, payload) {
+  payload = payload || {};
+  // 監査ログの補助（サーバ側で取れない場合の保険。認可には使わない）
+  if (App && App.meEmail && !payload.__clientEmail) payload.__clientEmail = App.meEmail;
   return new Promise((resolve, reject) => {
     google.script.run
       .withSuccessHandler((res) => {
@@ -501,6 +526,8 @@ async function navigateTo(page, { replace = false } = {}) {
 
   // 初回表示：URLに合わせて描画まで行う
   window.addEventListener('DOMContentLoaded', () => {
+    // ログイン中メールの表示（非同期でOK）
+    initMeEmail();
     const page =
       (new URL(location.href)).searchParams.get('page') ||
       window.__PAGE__ ||

@@ -275,6 +275,61 @@ function canAccessAllowFolder_(){
     return false;
   }
 }
+
+/***********************
+ * USER (who is accessing)
+ ***********************/
+function getUserEmail_(){
+  // NOTE:
+  // - Webアプリの「実行ユーザー」が USER_ACCESSING のとき、これでアクセス中ユーザーが取れます。
+  // - 個人Gmail等で Session から取れない場合は、OAuth token から userinfo を引いて補完します。
+  try{
+    const a = Session.getActiveUser().getEmail();
+    if (a) return a;
+  }catch(e){}
+  try{
+    const e = Session.getEffectiveUser().getEmail();
+    if (e) return e;
+  }catch(e){}
+  try{
+    const cache = CacheService.getUserCache();
+    const cached = cache.get('me_email');
+    if (cached) return cached;
+
+    const token = ScriptApp.getOAuthToken();
+    const resp = UrlFetchApp.fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true,
+    });
+    if (resp.getResponseCode() >= 200 && resp.getResponseCode() < 300){
+      const obj = JSON.parse(resp.getContentText() || '{}');
+      const email = String(obj.email || '').trim();
+      if (email){
+        cache.put('me_email', email, 21600); // 6h
+        return email;
+      }
+    }
+  }catch(e){}
+  return '';
+}
+
+function getActorEmail_(payload){
+  const email = getUserEmail_();
+  if(email) return email;
+  const c = String(payload && payload.__clientEmail || '').trim();
+  return c;
+}
+
+function api_getMe(){
+  return safeApi_(() => {
+    if(!canAccessAllowFolder_()) return { ok:false, message:'アクセス権限がありません。' };
+    const email = getUserEmail_();
+    return { ok:true, email };
+  });
+}
+
+
 function getBaseUrl_(){
   return ScriptApp.getService().getUrl();
 }

@@ -1,4 +1,4 @@
-/***********************
+﻿/***********************
  * ATTENDANCE SUMMARY
  ***********************/
 function api_listAttendanceEventSheets() {
@@ -380,48 +380,48 @@ function api_createParticipantsDbSheet(payload) {
   return safeApi_(() => {
     guard_(payload || {});
     return withWriteLockAndAudit_('api_createParticipantsDbSheet', payload || {}, () => {
-      const sheetName = String(payload?.sheetName || '').trim();
-      if (!sheetName) return { ok: false, message: 'sheetName is required' };
+    const sheetName = String(payload?.sheetName || '').trim();
+    if (!sheetName) return { ok: false, message: 'sheetName is required' };
 
-      const ss = openSS_(CONFIG.PARTICIPANTS_DB_ID);
-      if (ss.getSheetByName(sheetName)) {
-        return { ok: false, message: '同名のシートが既に存在します：' + sheetName };
-      }
+    const ss = openSS_(CONFIG.PARTICIPANTS_DB_ID);
+    if (ss.getSheetByName(sheetName)) {
+      return { ok: false, message: '同名のシートが既に存在します：' + sheetName };
+    }
 
-      const sh = ss.insertSheet(sheetName);
-      ss.setActiveSheet(sh);
-      ss.moveActiveSheet(1);
+    const sh = ss.insertSheet(sheetName);
+    ss.setActiveSheet(sh);
+    ss.moveActiveSheet(1);
 
-      const headers = ['SEQ','名前','よさ名','性別','参加区分','登録区分','備考'];
-      sh.getRange(PDB_HEADER_ROW, 1, 1, headers.length).setValues([headers]);
-      sh.setFrozenRows(PDB_HEADER_ROW);
+    const headers = ['SEQ','名前','よさ名','性別','参加区分','登録区分','備考'];
+    sh.getRange(PDB_HEADER_ROW, 1, 1, headers.length).setValues([headers]);
+    sh.setFrozenRows(PDB_HEADER_ROW);
 
-      // Table作成（Sheets Advanced Service）
-      if (typeof Sheets === 'undefined') {
-        return { ok: false, message: 'Sheets API（高度なGoogleサービス）が無効です。「サービス」から Sheets API を追加してください。' };
-      }
+    // Table作成（Sheets Advanced Service）
+    if (typeof Sheets === 'undefined') {
+      return { ok: false, message: 'Sheets API（高度なGoogleサービス）が無効です。「サービス」から Sheets API を追加してください。' };
+    }
 
-      const sheetId = sh.getSheetId();
-      const requests = [{
-        addTable: {
-          table: {
-            range: {
-              sheetId,
-              startRowIndex: 0,
-              endRowIndex: 1,
-              startColumnIndex: 0,
-              endColumnIndex: PDB_MAX_COLS
-            },
-            name: sheetName
-          }
+    const sheetId = sh.getSheetId();
+    const requests = [{
+      addTable: {
+        table: {
+          range: {
+            sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: PDB_MAX_COLS
+          },
+          name: sheetName
         }
-      }];
+      }
+    }];
 
-      Sheets.Spreadsheets.batchUpdate({ requests }, ss.getId());
-      updateParticipantsPivot_(ss.getId(), sheetId, 1);
+    Sheets.Spreadsheets.batchUpdate({ requests }, ss.getId());
+    updateParticipantsPivot_(ss.getId(), sheetId, 1);
 
-      return { ok: true, message: 'シートを作成しました：' + sheetName };
-    });
+    return { ok: true, message: 'シートを作成しました：' + sheetName };
+  });
   });
 }
 
@@ -471,6 +471,6 @@ function api_importParticipants(payload) {
     }
 
     return { ok: true, message: values.length + '件インポートしました' };
-    });
+  });
   });
 }

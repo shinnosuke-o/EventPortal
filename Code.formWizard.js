@@ -1,4 +1,4 @@
-/***********************
+﻿/***********************
  * FORM CREATE
  ***********************/
 const FORM_TITLE_SUFFIX = '出欠確認';
@@ -205,7 +205,7 @@ function api_createAttendanceForm(payload) {
       editUrl: form.getEditUrl(),
       publishedUrl: form.getPublishedUrl()
     };
-    });
+  });
   });
 }
 

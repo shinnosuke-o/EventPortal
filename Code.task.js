@@ -1,4 +1,4 @@
-/***********************
+﻿/***********************
  * TASKS
  ***********************/
 const TASK_DATA_START_ROW = 2;
@@ -76,7 +76,7 @@ function api_upsertTask(payload) {
     sh.getRange(appendRow, TASK_DATA_START_COL, 1, TASK_DATA_COLS).setValues(rowValues);
 
     return { ok: true, message: '追加しました。', rowNumber: appendRow };
-    });
+  });
   });
 }
 
