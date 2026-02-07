@@ -18,6 +18,7 @@ const ACCOUNT_DATA_COLS_NO_SEQ = 8; // B:I
 const ACCOUNT_STATUS_DEFAULT = '精算依頼前';
 const ACCOUNT_STATUS_REQUESTED = '精算依頼済み';
 const ACCOUNT_STATUS_DONE = '精算済み';
+const ACCOUNT_STATUS_DISCARDED = '破棄';
 const ACCOUNT_PAYDATE_PLACEHOLDER = 'yyyyMMdd';
 const ACCOUNT_FILENAME_MAX = 40;
 
@@ -33,19 +34,7 @@ function api_listExpenses() {
     if (lastRow < ACCOUNT_DATA_START_ROW) return { ok:true, expenses:[] };
 
     // ★B列（経費内容）で「本当の最終行」を決める（装飾だけの行を除外）
-    const bVals = sh.getRange(
-      ACCOUNT_DATA_START_ROW,
-      ACCOUNT_COL.TITLE,
-      lastRow - (ACCOUNT_DATA_START_ROW - 1),
-      1
-    ).getValues(); // B2:B
-    let lastDataRow = ACCOUNT_DATA_START_ROW - 1; // 実行時は 2行目〜なので「シート上の行番号」を作る
-    for (let i = bVals.length - 1; i >= 0; i--) {
-      if (String(bVals[i][0] ?? '').trim() !== '') {
-        lastDataRow = ACCOUNT_DATA_START_ROW + i; // シート行番号
-        break;
-      }
-    }
+    const lastDataRow = findLastDataRowByCol_(sh, ACCOUNT_COL.TITLE, ACCOUNT_DATA_START_ROW);
     if (lastDataRow < ACCOUNT_DATA_START_ROW) return { ok:true, expenses:[] };
 
     // ★A:I（9列）を読む：A=SEQ, B=経費内容, C=説明, D=支払者, E=支払日, F=領収書, G=ステータス, H=精算依頼日, I=精算日
@@ -134,136 +123,81 @@ function api_uploadReceipt(payload){
 }
 
 function api_upsertExpense(payload){
-  guard_(payload || {});
-  return withWriteLockAndAudit_('api_upsertExpense', payload || {}, () => {
-  const out = { ok:false, message:'', rowNumber:null };
-
-  try{
+  return writeApi_('api_upsertExpense', payload || {}, () => {
     const mode = String(payload?.mode || 'create'); // create/edit
     const data = payload?.data || {};
 
     const title = String(data.title||'').trim();
-    if(!title) return { ok:false, message:'経費内容は必須です。' };
+    if(!title) return { ok:false, message:'経費内容は必須です。', rowNumber:null };
 
-    const desc = String(data.desc||'');
-    const payer = String(data.payer||'');
-    const payDate = data.payDate ? new Date(String(data.payDate)+'T00:00:00') : null;
-
-    // ★追加：削除指示（新規添付なしで削除したい場合に使う）
     const removeReceipt = String(data.removeReceipt || '') === 'true' || data.removeReceipt === true;
     const oldReceiptUrl = String(data.oldReceiptUrl || '').trim();
 
-    // receiptUrl は「削除指示があれば空にする」
     let receiptUrl = String(data.receiptUrl||'').trim();
     if(removeReceipt) receiptUrl = '';
 
-    const status = String(data.status||ACCOUNT_STATUS_DEFAULT);
+    const status = String(data.status || ACCOUNT_STATUS_DEFAULT).trim();
+    let requestDate = parseDateYmd_(data.requestDate);
+    let settleDate  = parseDateYmd_(data.settleDate);
 
-    let requestDate = data.requestDate ? new Date(String(data.requestDate)+'T00:00:00') : null;
-    let settleDate  = data.settleDate ? new Date(String(data.settleDate)+'T00:00:00') : null;
-
-    // ステータスに応じた日付自動補完（好みで）
     const today = new Date();
     if(status === ACCOUNT_STATUS_REQUESTED && !requestDate) requestDate = today;
     if(status === ACCOUNT_STATUS_DONE && !settleDate) settleDate = today;
 
-    const ss = SpreadsheetApp.openById(CONFIG.TASK_SS_ID);
-    const sh = ss.getSheetByName(CONFIG.ACCOUNT_SHEET_NAME);
-    if(!sh) return { ok:false, message:'シートが見つかりません：' + CONFIG.ACCOUNT_SHEET_NAME };
+    const rowValues = [[
+      title,
+      String(data.desc||''),
+      String(data.payer||''),
+      parseDateYmd_(data.payDate),
+      receiptUrl,
+      status,
+      requestDate,
+      settleDate
+    ]]; // B:I
+
+    const ss = openSS_(CONFIG.TASK_SS_ID);
+    const sh = mustSheet_(ss, CONFIG.ACCOUNT_SHEET_NAME);
 
     if(mode === 'edit'){
       const rowNumber = Number(payload?.rowNumber);
       if(!Number.isFinite(rowNumber) || rowNumber < ACCOUNT_DATA_START_ROW) {
-        return { ok:false, message:'修正対象行が不正です。' };
+        return { ok:false, message:'修正対象行が不正です。', rowNumber:null };
       }
 
-      // ★追加：既存領収書の削除（新規添付なしでの削除）
-      // ※フロントが oldReceiptUrl を送ってきた時だけ Drive 側も削除する
+      // 領収書削除（既存があり、削除要求がある場合）
       if(removeReceipt && oldReceiptUrl){
-        // 失敗したら中断（誤ってシートだけ消えるのを防ぐ）
         deleteReceiptByUrl_(oldReceiptUrl);
       }
 
-      const rowValues = [[ title, desc, payer, payDate, receiptUrl, status, requestDate, settleDate ]]; // B:I
       sh.getRange(rowNumber, ACCOUNT_COL.TITLE, 1, ACCOUNT_DATA_COLS_NO_SEQ).setValues(rowValues);
-
-      out.ok = true;
-      out.rowNumber = rowNumber;
-      out.message = '更新しました。';
-      return out;
+      return { ok:true, message:'更新しました。', rowNumber };
     }
 
-    // create: B列（経費内容）基準で末尾追加
     const lastDataRow = findLastDataRowByCol_(sh, ACCOUNT_COL.TITLE, ACCOUNT_DATA_START_ROW);
     const appendRow = Math.max(ACCOUNT_DATA_START_ROW, lastDataRow + 1);
 
-    const rowValues = [[ title, desc, payer, payDate, receiptUrl, status, requestDate, settleDate ]]; // B:I
     sh.getRange(appendRow, ACCOUNT_COL.TITLE, 1, ACCOUNT_DATA_COLS_NO_SEQ).setValues(rowValues);
-
-    out.ok = true;
-    out.rowNumber = appendRow;
-    out.message = '追加しました。';
-    return out;
-
-  }catch(e){
-    return { ok:false, message:e?.message || String(e) };
-  }
-
+    return { ok:true, message:'追加しました。', rowNumber: appendRow };
   });
 }
 
 function api_bulkUpdateExpenseStatus(payload){
-  guard_(payload || {});
-  return withWriteLockAndAudit_('api_bulkUpdateExpenseStatus', payload || {}, () => {
-  try{
+  return writeApi_('api_bulkUpdateExpenseStatus', payload || {}, () => {
     const rowNumbers = Array.isArray(payload?.rowNumbers) ? payload.rowNumbers : [];
     const newStatus = String(payload?.newStatus || '').trim();
     if(!rowNumbers.length) return { ok:false, message:'rowNumbers is empty' };
     if(!newStatus) return { ok:false, message:'newStatus is required' };
 
-    const ss = SpreadsheetApp.openById(CONFIG.TASK_SS_ID);
-    const sh = ss.getSheetByName(CONFIG.ACCOUNT_SHEET_NAME);
-    if(!sh) return { ok:false, message:'シートが見つかりません：' + CONFIG.ACCOUNT_SHEET_NAME };
+    const ss = openSS_(CONFIG.TASK_SS_ID);
+    const sh = mustSheet_(ss, CONFIG.ACCOUNT_SHEET_NAME);
 
-    const today = new Date();
+    // まとめてステータス更新（G列）
+    sh.getRangeList(rowNumbers.map(r => `G${r}`)).setValue(newStatus);
 
-    for(const rn of rowNumbers){
-      const row = Number(rn);
-      if(!Number.isFinite(row) || row < ACCOUNT_DATA_START_ROW) continue;
-
-      // G=ステータス(7列目/B起点だと6番目) → ここはRangeで直接指定が安全
-      // B起点のため、G列は「2+5=7列目」ではなく、シートの列でGは7。
-      sh.getRange(row, ACCOUNT_COL.STATUS).setValue(newStatus); // G
-
-      if(newStatus === ACCOUNT_STATUS_REQUESTED){
-        sh.getRange(row, ACCOUNT_COL.REQUEST_DATE).setValue(today); // H 精算依頼日
-      }
-      if(newStatus === ACCOUNT_STATUS_DONE){
-        sh.getRange(row, ACCOUNT_COL.SETTLE_DATE).setValue(today); // I 精算日
-      }
-    }
-
-    return { ok:true, message:`${rowNumbers.length}件更新しました` };
-  }catch(e){
-    return { ok:false, message:e?.message || String(e) };
-  }
-
+    return { ok:true, message:`${rowNumbers.length}件 更新しました。` };
   });
 }
 
-function findLastDataRowByCol_(sh, col, startRow){
-  const last = sh.getLastRow();
-  if (last < startRow) return startRow - 1;
-
-  // B列だけ取得して、最後に値がある行を探す
-  const vals = sh.getRange(startRow, col, last - startRow + 1, 1).getValues();
-
-  for (let i = vals.length - 1; i >= 0; i--) {
-    const v = vals[i][0];
-    if (v !== '' && v !== null) return startRow + i;
-  }
-  return startRow - 1;
-}
 
 function getDriveFileIdFromUrl_(url){
   const s = String(url || '').trim();

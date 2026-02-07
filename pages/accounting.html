@@ -490,6 +490,12 @@ window.accountingInit = function accountingInit(){
       return matchesFilter(x, f);
     });
 
+    // フィルタ結果に存在しないものも選択解除（非表示になった行の選択が残らないように）
+    const visibleSet = new Set(filtered.map(x => Number(x.rowNumber)));
+    for (const rn of Array.from(selected)) {
+      if (!visibleSet.has(Number(rn))) selected.delete(rn);
+    }
+
     const pre  = filtered.filter(x=>String(x.status||'').trim()==='精算依頼前');
     const req  = filtered.filter(x=>String(x.status||'').trim()==='精算依頼済み');
     const done = filtered.filter(x=>String(x.status||'').trim()==='精算済み');
@@ -816,6 +822,7 @@ window.accountingInit = function accountingInit(){
     if(!res || !res.ok) throw new Error(res?.message || '保存に失敗しました');
 
     allExpenses = await loadAll();
+    selected.clear();
     render();
 
     return res;

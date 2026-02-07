@@ -39,28 +39,27 @@ function api_getTasks() {
 }
 
 function api_upsertTask(payload) {
-  return safeApi_(() => {
-    guard_(payload || {});
-    return withWriteLockAndAudit_('api_upsertTask', payload || {}, () => {
-    const mode = String(payload?.mode || '').trim();
+  return writeApi_('api_upsertTask', payload || {}, () => {
+    const mode = String(payload?.mode || '').trim(); // create/edit
     const data = payload?.data || {};
 
     const task = String(data.task || '').trim();
     if (!task) return { ok: false, message: 'タスク内容は必須です。', rowNumber: null };
 
-    const category = String(data.category || '');
-    const genre = String(data.genre || '');
-    const assigneeArr = Array.isArray(data.assignee) ? data.assignee : [];
-    const assignee = assigneeArr.map(x => String(x || '').trim()).filter(Boolean).join(',');
-    const due = data.due ? new Date(String(data.due) + 'T00:00:00') : null;
-    const priority = String(data.priority || '');
-    const status = String(data.status || '');
-    const note = String(data.note || '');
+    const rowValues = [[
+      task,
+      String(data.category || ''),
+      String(data.genre || ''),
+      (Array.isArray(data.assignee) ? data.assignee : [])
+        .map(x => String(x || '').trim()).filter(Boolean).join(','),
+      parseDateYmd_(data.due),
+      String(data.priority || ''),
+      String(data.status || ''),
+      String(data.note || '')
+    ]]; // B:I
 
     const ss = openSS_(CONFIG.TASK_SS_ID);
     const sh = mustSheet_(ss, CONFIG.TASK_SHEET_NAME);
-
-    const rowValues = [[ task, category, genre, assignee, due, priority, status, note ]];
 
     if (mode === 'edit') {
       const rowNumber = Number(payload?.rowNumber);
@@ -71,12 +70,9 @@ function api_upsertTask(payload) {
       return { ok: true, message: '更新しました。', rowNumber };
     }
 
-    // create（B列ベースで末尾探索）
     const appendRow = appendRowByColumnB_(sh, TASK_DATA_START_ROW);
     sh.getRange(appendRow, TASK_DATA_START_COL, 1, TASK_DATA_COLS).setValues(rowValues);
-
     return { ok: true, message: '追加しました。', rowNumber: appendRow };
-  });
   });
 }
 

@@ -43,6 +43,52 @@ function safeApi_(fn) {
 }
 
 
+
+// yyyy-mm-dd (input[type=date]) を Date(00:00) に
+function parseDateYmd_(s){
+  const v = String(s || '').trim();
+  if(!v) return null;
+  const d = new Date(v + 'T00:00:00');
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * 変更系API 共通実行
+ * - guard
+ * - lock + audit
+ * - 戻り値は常に {ok:boolean,...}
+ */
+function writeApi_(fnName, payload, handler){
+  return safeApi_(() => {
+    guard_(payload || {});
+    return withWriteLockAndAudit_(fnName, payload || {}, () => {
+      const res = handler();
+      if(res && typeof res === 'object' && 'ok' in res) return res;
+      return { ok:true, data: res };
+    });
+  });
+}
+
+// 監査などで「実行ユーザー」を返す（Session取得が空なら、クライアント送信値で補完）
+function getActorEmail_(payload){
+  const email = getUserEmail_();
+  if(email) return email;
+  return String(payload?.__clientEmail || '').trim();
+}
+
+// 指定列で「本当の最終行」を探す（装飾だけの行を除外）
+function findLastDataRowByCol_(sh, col, startRow){
+  const last = sh.getLastRow();
+  if (last < startRow) return startRow - 1;
+  const vals = sh.getRange(startRow, col, last - startRow + 1, 1).getValues();
+  for (let i = vals.length - 1; i >= 0; i--) {
+    const v = vals[i][0];
+    if (v !== '' && v !== null && String(v).trim() !== '') return startRow + i;
+  }
+  return startRow - 1;
+}
+
+
 /**
  * 共通ガード（サーバ側）
  * - Webアプリ利用許可フォルダにアクセスできないユーザーは拒否
@@ -81,15 +127,6 @@ function auditLog_(entry){
   }catch(e){
     // 監査ログ失敗で本処理を落とさない（運用優先）
     console.error('auditLog_ failed:', e);
-  }
-}
-
-function getUserEmail_(){
-  try{
-    const email = Session.getActiveUser().getEmail();
-    return email || '';
-  }catch(e){
-    return '';
   }
 }
 
@@ -314,12 +351,6 @@ function getUserEmail_(){
   return '';
 }
 
-function getActorEmail_(payload){
-  const email = getUserEmail_();
-  if(email) return email;
-  const c = String(payload && payload.__clientEmail || '').trim();
-  return c;
-}
 
 function api_getMe(){
   return safeApi_(() => {
@@ -516,14 +547,3 @@ function moveFileToFolder_(fileId, folderId) {
     }
   );
 }
-
-
-
-
-// tokeninfo で検証（最短・堅牢）
-
-
-
-
-
-
