@@ -174,8 +174,8 @@
 
             <!-- ★追加 -->
             <div style="margin-top:6px; color:var(--muted); font-size:12px;">
-              保存予定ファイル名：
-              <span id="ac_m_filename">（未確定）</span>
+              保存ファイル名：
+              <span id="ac_m_filename"></span>
             </div>
           </div>
         </div>
@@ -263,9 +263,12 @@ window.accountingInit = function accountingInit(){
       .replaceAll("'","&#039;");
 
   const setStatus = (t, busyFlg) => App.setStatus(statusEl, t, busyFlg);
-  const busy = App.makeBusy('経費を登録中しています。\nしばらくお待ちください。', { title: '登録中です…' });
-const openModal = ()=> App.openModal(modal);
-  const closeModal = ()=> App.closeModal(modal);
+  const busy = App.makeBusy('経費を登録しています。\nしばらくお待ちください。', { title: '登録中です…' });
+  const openModal = ()=> App.openModal(modal);
+  const closeModal = ()=> {
+    App.closeModal(modal);
+    clearFieldWarn(mTitleInput);
+  }
   const openFilter = ()=> App.openModal(filterModal);
   const closeFilter = ()=> App.closeModal(filterModal);
 
@@ -549,7 +552,7 @@ const openModal = ()=> App.openModal(modal);
     mFile.value = '';
     currentReceiptUrl = '';
     mReceiptLink.innerHTML = `<span style="color:var(--muted);">（なし）</span>`;
-    if(fileNameEl) fileNameEl.textContent = '（未確定）';
+    if(fileNameEl) fileNameEl.textContent = '';
   }
 
   function openCreate(){
@@ -582,6 +585,7 @@ const openModal = ()=> App.openModal(modal);
     mPayDate.value    = isoToYMD(expense.payDate);
     mStatusSel.value  = expense.status || '精算依頼前';
     setReceiptLink(expense.receiptUrl || '');
+    updatePlannedFileName();
 
     setModalStatus('修正内容を入力してください。', false);
     openModal();
@@ -602,17 +606,17 @@ const openModal = ()=> App.openModal(modal);
   }
 
   function buildReceiptFileName(){
-    const date  = mPayDate.value; // yyyy-MM-dd
-    const payer = (mPayer.value || '').trim();
+    const date  = mPayDate.value || `yyyy-MM-dd`; // yyyy-MM-dd
+    const payer = (mPayer.value || '支払者').trim();
     const title = (mTitleInput.value || '').trim();
-    if(!date || !payer || !title) return '';
+    if(!date || !payer || !title || !mFile.files[0]) return '';
     const ymd = date.replaceAll('-', '');
     return `${ymd}_${payer}_${title}`;
   }
   function updatePlannedFileName(){
     if(!fileNameEl) return;
     const name = buildReceiptFileName();
-    fileNameEl.textContent = name || '（支払日・支払者・経費内容を入力してください）';
+    fileNameEl.textContent = name || '';
   }
 
   async function buildSavePayload(){
@@ -620,6 +624,7 @@ const openModal = ()=> App.openModal(modal);
     if(!title) return App.modal?.warn('経費内容は必須です。');
 
     const file = mFile.files && mFile.files[0] ? mFile.files[0] : null;
+    const fileName = mFile.files && mFile.files[0] ? mFile.files[0].name : '';
 
     // 編集モード + 既存URLあり + 新規ファイル選択 → 確認
     let oldReceiptUrl = '';
@@ -638,7 +643,8 @@ const openModal = ()=> App.openModal(modal);
         payer: (mPayer.value||'').trim(),
         payDate: (mPayDate.value||'') ? String(mPayDate.value) : null, // YYYY-MM-DD
         status: (mStatusSel.value||'精算依頼前').trim(),
-        receiptUrl: currentReceiptUrl || ''
+        receiptFileName: (fileName || (currentReceiptUrl ? '既存ファイルあり' : '')).trim(),
+        savingFileName: (fileNameEl.textContent || '').trim()
       }
     };
 
@@ -656,7 +662,7 @@ const openModal = ()=> App.openModal(modal);
       `支払者：${d.payer || ''}`,
       `支払日：${payDate}`,
       `ステータス：${d.status || ''}`,
-      `領収書：${d.receiptUrl ? 'あり（既存）' : 'なし'}`,
+      `領収書：${d.receiptFileName ? `${d.receiptFileName}\n保存ファイル名：${d.savingFileName}` : 'なし'}`,
     ].join('\n');
   }
 
@@ -807,14 +813,12 @@ const openModal = ()=> App.openModal(modal);
   function clearFieldWarn(inputEl){ showFieldWarn(inputEl,''); }
 
   function bindBasicFieldBehaviors(){
-    const keihi = ac_m_titleInput;
+    if(!mTitleInput) return;
 
-    if(!keihi) return;
-
-    keihi.onblur = () => {
-      const v = (keihi.value || '').trim();
-      if(!v) showFieldWarn(keihi,'経費内容は必須です。');
-      else clearFieldWarn(keihi);
+    mTitleInput.onblur = () => {
+      const v = (mTitleInput.value || '').trim();
+      if(!v) showFieldWarn(mTitleInput,'経費内容は必須です。');
+      else clearFieldWarn(mTitleInput);
     };
   }
 
