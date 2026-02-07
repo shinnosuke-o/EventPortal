@@ -275,23 +275,11 @@ window.taskInit = function taskInit(){
       return `${Number(m)}/${Number(d)}`;
     }
   };
-
   const modal = {
-    open(el){
-      if(!el) return;
-      el.style.display = 'block';
-    },
-    close(el){
-      if(!el) return;
-      el.style.display = 'none';
-    }
+    open: (el)=> App.openModal(el),
+    close: (el)=> App.closeModal(el)
   };
   const busy = App.makeBusy('タスクを登録してます。\nしばらくお待ちください。', { title: '登録中です…' });
-
-  function setBodyScrollLock(lock){
-    if (App.toggleBodyScroll) App.toggleBodyScroll(lock);
-    else document.body.style.overflow = lock ? 'hidden' : '';
-  }
 
   // =========
   // State
@@ -475,7 +463,7 @@ window.taskInit = function taskInit(){
   function clearFieldWarn(inputEl){ showFieldWarn(inputEl,''); }
 
   function bindBasicFieldBehaviors(){
-    const task = tk_i_task;
+    const task = ui.i_task;
 
     if(!task) return;
 
@@ -564,7 +552,7 @@ window.taskInit = function taskInit(){
   // Edit modal
   // =========
   function openEdit(mode, taskObj){
-    setBodyScrollLock(true);
+    
     modal.open(ui.editModal);
 
     ui.editTitle.textContent = (mode === 'edit') ? 'タスク修正' : 'タスク追加';
@@ -586,7 +574,7 @@ window.taskInit = function taskInit(){
   function closeEdit(){
     modal.close(ui.editModal);
     // busy/confirm は App 側で管理
-    setBodyScrollLock(false);
+    clearFieldWarn(ui.i_task);
   }
 
   function getEditData(){
@@ -644,13 +632,13 @@ window.taskInit = function taskInit(){
 
       if(!res.ok) throw new Error(res.message || '保存に失敗しました');
 
+      await loadTasks();
+
       busy.hide();
+      closeEdit();
+
       App.modal?.info(p.mode === 'edit' ? '更新しました' : '追加しました');
 
-      closeEdit();
-      setBodyScrollLock(false);
-
-      await loadTasks();
       setStatus('完了しました。', false);
 
     } catch(e){
@@ -681,7 +669,7 @@ window.taskInit = function taskInit(){
 
   ui.i_cancel.onclick = ()=>{
     closeEdit();
-    setBodyScrollLock(false);
+    
   };
 
   ui.i_save.onclick = ()=>{
@@ -724,6 +712,7 @@ window.taskInit = function taskInit(){
   bindBasicFieldBehaviors();
 };
 </script>
+
 
 
 

@@ -121,7 +121,7 @@
       <div class="notice" id="ac_m_status" style="margin-top:10px;">入力してください。</div>
     </div>
 
-    <!-- body (縦スクロールOK / 横スクロール禁止) -->
+    <!-- body -->
     <div style="
       padding:14px;
       overflow:auto;
@@ -161,6 +161,7 @@
             <option value="精算依頼前">精算依頼前</option>
             <option value="精算依頼済み">精算依頼済み</option>
             <option value="精算済み">精算済み</option>
+            <option value="破棄">破棄</option>
           </select>
         </div>
 
@@ -169,10 +170,16 @@
           <input id="ac_m_file" type="file" accept="image/*,application/pdf" />
 
           <div class="notice" style="margin-top:8px;">
-            <div>現在の領収書：</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+              <div>現在の領収書：</div>
+              <!-- ★修正モードで既存領収書がある場合のみ表示 -->
+              <button id="ac_m_deleteReceipt" type="button" class="btn secondary" style="display:none;">
+                保存済み領収書を削除
+              </button>
+            </div>
+
             <div id="ac_m_receiptLink" class="ac-break" style="margin-top:4px;"></div>
 
-            <!-- ★追加 -->
             <div style="margin-top:6px; color:var(--muted); font-size:12px;">
               保存ファイル名：
               <span id="ac_m_filename"></span>
@@ -245,6 +252,7 @@ window.accountingInit = function accountingInit(){
   const mSave        = $('#ac_m_save');
 
   const fileNameEl = document.getElementById('ac_m_filename');
+  const btnDeleteReceipt = document.getElementById('ac_m_deleteReceipt');
 
   // ---- server bridge
   if (typeof callServer !== 'function'){
@@ -293,9 +301,9 @@ window.accountingInit = function accountingInit(){
   }
 
   // ---- styles (1回だけ)
-  if(!document.getElementById('ac_style_v3')){
+  if(!document.getElementById('ac_style_v4')){
     const st = document.createElement('style');
-    st.id = 'ac_style_v3';
+    st.id = 'ac_style_v4';
     st.textContent = `
       .ac-list{ display:grid; gap:10px; }
       .ac-row{
@@ -339,12 +347,15 @@ window.accountingInit = function accountingInit(){
 
   // ---- state
   let allExpenses = [];
-  const selected = new Set(); // key: rowNumber（更新用）
+  const selected = new Set(); // key: rowNumber
   let modalMode = 'create';
   let editingRowNumber = null;
-  let currentReceiptUrl = '';
 
-  // ---- 正規化：サーバー戻りのキーゆれを吸収
+  let currentReceiptUrl = '';        // 入力モーダルが表示している「現在のURL」
+  let originalReceiptUrl = '';       // 編集開始時点のURL（削除用）
+  let receiptDeleteRequested = false; // 「保存済み領収書を削除」ボタンで true になる
+
+  // ---- 正規化
   function normalizeExpense(raw){
     const rowNumber =
       Number(raw?.rowNumber) ||
@@ -466,7 +477,18 @@ window.accountingInit = function accountingInit(){
   // ===== 描画 =====
   function render(){
     const f = getFilter();
-    const filtered = (allExpenses||[]).filter(x=>matchesFilter(x, f));
+
+    // 破棄になった明細は、選択状態から必ず外す（画面に出ないため）
+    for (const rn of Array.from(selected)) {
+      const x = allExpenses.find(e => Number(e.rowNumber) === Number(rn));
+      if (x && String(x.status || '').trim() === '破棄') selected.delete(rn);
+    }
+
+    const filtered = (allExpenses||[]).filter(x=>{
+      // 破棄は常に非表示
+      if(String(x.status||'').trim()==='破棄') return false;
+      return matchesFilter(x, f);
+    });
 
     const pre  = filtered.filter(x=>String(x.status||'').trim()==='精算依頼前');
     const req  = filtered.filter(x=>String(x.status||'').trim()==='精算依頼済み');
@@ -479,20 +501,11 @@ window.accountingInit = function accountingInit(){
     setStatus(`表示：${filtered.length}件（依頼前${pre.length} / 依頼済${req.length} / 済${done.length}）`, false);
   }
 
-  // ✅ 互換：saveModal等が renderLists を呼んでも落ちないように残す
-  function renderLists(_expenses, _filter){
-    // 旧コード互換。内部state基準で描画する設計に統一
-    render();
-  }
-
-  // ---- イベント委譲：renderのたびに付け直さない
   function onListClick(e){
     const row = e.target.closest('.ac-row[data-row]');
     if(!row) return;
     const rn = Number(row.dataset.row);
     if(!Number.isFinite(rn)) return;
-
-    // checkbox 自体のクリックは onchange で処理
     if(e.target && e.target.matches('input[type="checkbox"][data-sel]')) return;
 
     if(selected.has(rn)) selected.delete(rn);
@@ -508,7 +521,6 @@ window.accountingInit = function accountingInit(){
     else selected.delete(rn);
     render();
   }
-
   [hostPre, hostReq, hostDone].forEach(h=>{
     h.addEventListener('click', onListClick);
     h.addEventListener('change', onCheckboxChange);
@@ -541,6 +553,10 @@ window.accountingInit = function accountingInit(){
     mReceiptLink.innerHTML = currentReceiptUrl
       ? `<a class="link" href="${esc(currentReceiptUrl)}" target="_blank" rel="noopener">${esc(currentReceiptUrl)}</a>`
       : `<span style="color:var(--muted);">（なし）</span>`;
+
+    // 削除ボタン表示制御（編集モードで、削除予約されておらず、URLがある時のみ）
+    const canDelete = (modalMode === 'edit') && !!currentReceiptUrl && !receiptDeleteRequested;
+    if(btnDeleteReceipt) btnDeleteReceipt.style.display = canDelete ? 'inline-flex' : 'none';
   }
 
   function resetModal(){
@@ -550,15 +566,21 @@ window.accountingInit = function accountingInit(){
     mPayDate.value = '';
     mStatusSel.value = '精算依頼前';
     mFile.value = '';
+
     currentReceiptUrl = '';
+    originalReceiptUrl = '';
+    receiptDeleteRequested = false;
+
     mReceiptLink.innerHTML = `<span style="color:var(--muted);">（なし）</span>`;
     if(fileNameEl) fileNameEl.textContent = '';
+    if(btnDeleteReceipt) btnDeleteReceipt.style.display = 'none';
   }
 
   function openCreate(){
     modalMode = 'create';
     editingRowNumber = null;
     mTitle.textContent = '経費追加';
+
     resetModal();
     setModalStatus('入力してください。', false);
     openModal();
@@ -584,7 +606,11 @@ window.accountingInit = function accountingInit(){
     mPayer.value      = expense.payer || '';
     mPayDate.value    = isoToYMD(expense.payDate);
     mStatusSel.value  = expense.status || '精算依頼前';
-    setReceiptLink(expense.receiptUrl || '');
+
+    originalReceiptUrl = String(expense.receiptUrl || '').trim();
+    receiptDeleteRequested = false;
+
+    setReceiptLink(originalReceiptUrl);
     updatePlannedFileName();
 
     setModalStatus('修正内容を入力してください。', false);
@@ -606,32 +632,115 @@ window.accountingInit = function accountingInit(){
   }
 
   function buildReceiptFileName(){
-    const date  = mPayDate.value || `yyyy-MM-dd`; // yyyy-MM-dd
+    const file = mFile?.files && mFile.files[0] ? mFile.files[0] : null;
+    if(!file) return '';
+
+    const date  = mPayDate.value || `yyyy-MM-dd`;
     const payer = (mPayer.value || '支払者').trim();
     const title = (mTitleInput.value || '').trim();
-    if(!date || !payer || !title || !mFile.files[0]) return '';
+    if(!date || !payer || !title) return '';
+
     const ymd = date.replaceAll('-', '');
-    return `${ymd}_${payer}_${title}`;
+    // 拡張子はサーバ側でも確定するが、UI表示は予測でOK
+    const ext = (file.type || '').includes('pdf') ? 'pdf' : 'png';
+    return `${ymd}_${payer}_${title}.${ext}`;
   }
+
   function updatePlannedFileName(){
     if(!fileNameEl) return;
     const name = buildReceiptFileName();
     fileNameEl.textContent = name || '';
   }
 
+  // ====== 確認モーダル用：領収書表示仕様（要件通り） ======
+  function buildReceiptConfirmLine({ mode, file, originalUrl, currentUrl, deleteRequested, plannedName }){
+    const hasNewFile = !!file;
+    const newFileName = hasNewFile ? String(file.name || '').trim() : '';
+    const hasOriginal = !!String(originalUrl||'').trim();
+
+    // 追加モード
+    if(mode === 'create'){
+      if(hasNewFile) return `領収書：${newFileName || '（ファイル名不明）'}`;
+      return `領収書：なし`;
+    }
+
+    // 修正モード
+    if(hasOriginal){
+      if(hasNewFile){
+        return `領収書：${newFileName || '（ファイル名不明）'}`;
+      }
+      // 新規添付なし
+      if(deleteRequested){
+        return `領収書：なし`;
+      }
+      // 現状維持（URL表示）
+      const url = String(currentUrl||originalUrl||'').trim();
+      return `領収書：${url || 'なし'}`;
+    }
+
+    // 修正モード：元々なし
+    if(hasNewFile) return `領収書：${newFileName || '（ファイル名不明）'}`;
+    return `領収書：なし`;
+  }
+
+  function buildConfirmText(payload, ctx){
+    const d = payload.data || {};
+    const mode = payload.mode === 'edit' ? 'edit' : 'create';
+    const title = (mode === 'edit') ? '【修正】' : '【追加】';
+    const payDate = d.payDate || '';
+
+    const receiptLine = buildReceiptConfirmLine({
+      mode,
+      file: ctx.file,
+      originalUrl: ctx.originalReceiptUrl,
+      currentUrl: ctx.currentReceiptUrl,
+      deleteRequested: ctx.receiptDeleteRequested,
+      plannedName: ctx.plannedFileName
+    });
+
+    const lines = [
+      `${title}`,
+      `経費内容：${d.title || ''}`,
+      `説明：${d.desc || ''}`,
+      `支払者：${d.payer || ''}`,
+      `支払日：${payDate}`,
+      `ステータス：${d.status || ''}`,
+      receiptLine
+    ];
+
+    // 新規添付がある場合は注意書き
+    if(ctx.file){
+      const planned = (ctx.plannedFileName || '').trim();
+      if(planned){
+        lines.push('');
+        lines.push(`※領収書は「${planned}」という名前で保存されます`);
+      }else{
+        lines.push('');
+        lines.push(`※領収書は、支払日・支払者・経費内容から生成した名前で保存されます`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  // ===== 保存フロー =====
   async function buildSavePayload(){
     const title = (mTitleInput.value||'').trim();
-    if(!title) return App.modal?.warn('経費内容は必須です。');
+    if(!title){
+      App.modal?.warn('経費内容は必須です。');
+      return null;
+    }
 
     const file = mFile.files && mFile.files[0] ? mFile.files[0] : null;
-    const fileName = mFile.files && mFile.files[0] ? mFile.files[0].name : '';
 
-    // 編集モード + 既存URLあり + 新規ファイル選択 → 確認
-    let oldReceiptUrl = '';
-    if (modalMode === 'edit' && file && (currentReceiptUrl||'').trim()) {
-      const ok = await App.modal?.confirm('すでに保存済みの領収書が削除されます。よろしいですか？');
-      if (!ok) return null;
-      oldReceiptUrl = (currentReceiptUrl||'').trim();
+    // 差し替え（編集 + 新規添付 + 既存URLあり（削除予約で空にしてない））→確認
+    let oldReceiptUrlForUpload = '';
+    if(modalMode === 'edit' && file && String(originalReceiptUrl||'').trim() && !receiptDeleteRequested){
+      const ok = await App.modal?.confirm('すでに保存済みの領収書に上書き保存されます。よろしいですか？',{
+        okText:'はい', cancelText:'いいえ'
+      });
+      if(!ok) return null;
+      oldReceiptUrlForUpload = String(originalReceiptUrl||'').trim();
     }
 
     const payload = {
@@ -641,104 +750,96 @@ window.accountingInit = function accountingInit(){
         title,
         desc: (mDescInput.value||'').trim(),
         payer: (mPayer.value||'').trim(),
-        payDate: (mPayDate.value||'') ? String(mPayDate.value) : null, // YYYY-MM-DD
+        payDate: (mPayDate.value||'') ? String(mPayDate.value) : null,
         status: (mStatusSel.value||'精算依頼前').trim(),
-        receiptFileName: (fileName || (currentReceiptUrl ? '既存ファイルあり' : '')).trim(),
-        savingFileName: (fileNameEl.textContent || '').trim()
+        receiptUrl: receiptDeleteRequested ? '' : (currentReceiptUrl || ''),
+        // ★削除用（GAS側 api_upsertExpense が見る）
+        removeReceipt: (modalMode==='edit') ? !!receiptDeleteRequested : false,
+        oldReceiptUrl: (modalMode==='edit') ? (originalReceiptUrl || '') : ''
       }
     };
 
-    return { payload, file, oldReceiptUrl };
+    return {
+      payload,
+      file,
+      oldReceiptUrlForUpload,
+      // confirm表示用
+      ctx: {
+        file,
+        plannedFileName: (fileNameEl?.textContent || '').trim(),
+        originalReceiptUrl: (originalReceiptUrl || ''),
+        currentReceiptUrl: (currentReceiptUrl || ''),
+        receiptDeleteRequested: !!receiptDeleteRequested
+      }
+    };
   }
 
-  function buildConfirmText(payload){
-    const d = payload.data || {};
-    const title = (payload.mode === 'edit') ? '【修正】' : '【追加】';
-    const payDate = d.payDate || '';
-    return [
-      `${title}`,
-      `経費内容：${d.title || ''}`,
-      `説明：${d.desc || ''}`,
-      `支払者：${d.payer || ''}`,
-      `支払日：${payDate}`,
-      `ステータス：${d.status || ''}`,
-      `領収書：${d.receiptFileName ? `${d.receiptFileName}\n保存ファイル名：${d.savingFileName}` : 'なし'}`,
-    ].join('\n');
+  async function saveModalCore(p){
+    const payload = p?.payload;
+    const file = p?.file;
+    const oldReceiptUrlForUpload = p?.oldReceiptUrlForUpload || '';
+
+    if(!payload) throw new Error('payloadがありません');
+
+    setModalStatus('登録中...', true);
+    mSave.disabled = true;
+
+    // 新規添付があるなら先にアップロード
+    if(file){
+      const { mime, base64 } = await fileToBase64(file);
+      const payDate = (payload.data.payDate||'');
+      const payer   = (payload.data.payer||'').trim();
+      const title2  = (payload.data.title||'').trim();
+
+      const up = await callServer('api_uploadReceipt', {
+        name: file.name || 'receipt',
+        mime,
+        base64,
+        payDate,
+        payer,
+        title: title2,
+        oldReceiptUrl: oldReceiptUrlForUpload // 差し替え時だけ入る
+      });
+      if(!up || !up.ok) throw new Error(up?.message || '領収書アップロードに失敗しました');
+
+      // サーバが返すURLを採用
+      currentReceiptUrl = up.url || '';
+      payload.data.receiptUrl = currentReceiptUrl;
+
+      // 差し替えで oldReceiptUrl を送って削除したケースでは、
+      // GAS側がさらに upsert で removeReceipt を見て削除しないよう、removeReceiptは維持してOK（falseのまま）
+      payload.data.removeReceipt = false;
+      payload.data.oldReceiptUrl = '';
+    }
+
+    const res = await callServer('api_upsertExpense', payload);
+    if(!res || !res.ok) throw new Error(res?.message || '保存に失敗しました');
+
+    allExpenses = await loadAll();
+    render();
+
+    return res;
   }
 
-    async function saveModalCore(p){
-      const payload = p?.payload;
-      const file = p?.file;
-      const oldReceiptUrl = p?.oldReceiptUrl || '';
-      if(!payload) throw new Error('payloadがありません');
+  async function performSave(p){
+    busy.show();
+    try{
+      const res = await saveModalCore(p);
 
-      setModalStatus('登録中...', true);
-      mSave.disabled = true;
+      busy.hide();
+      App.modal?.info(res.message || '保存しました');
+      closeModal();
+      setStatus('完了しました。', false);
 
-      // 先にアップロード（必要なら）
-      if(file){
-        const { mime, base64 } = await fileToBase64(file);
-        const payDate = (payload.data.payDate||''); // YYYY-MM-DD
-        const payer   = (payload.data.payer||'').trim();
-        const title2  = (payload.data.title||'').trim();
-
-        const up = await callServer('api_uploadReceipt', {
-          name: file.name || 'receipt',
-          mime,
-          base64,
-          payDate,
-          payer,
-          title: title2,
-          oldReceiptUrl
-        });
-        if(!up || !up.ok) throw new Error(up?.message || '領収書アップロードに失敗しました');
-
-        setReceiptLink(up.url);
-        payload.data.receiptUrl = up.url || '';
-      }
-
-      const res = await callServer('api_upsertExpense', payload);
-      if(!res || !res.ok) throw new Error(res?.message || '保存に失敗しました');
-
-      // 再取得して描画
-      allExpenses = await loadAll();
-      render(); // ← renderListsではなく、今の設計に合わせて render に統一
-
-      return res;
+    }catch(e){
+      console.error(e);
+      busy.hide();
+      setModalStatus('保存に失敗しました：' + (e.message||e), false);
+      App.modal?.error('保存に失敗しました：' + (e.message||e));
+    }finally{
+      mSave.disabled = false;
     }
-
-    async function performSave(p){
-      // task.htmlと同様：confirm→busy→保存→busy閉→完了
-      busy.show();
-      try{
-        const res = await saveModalCore(p);
-
-        busy.hide();
-        App.modal?.info(res.message || '保存しました');
-
-        closeModal();          // 入力モーダルを閉じる
-
-        // 入力モーダルが閉じたのでスクロール解除
-        if (App.unlockBodyScroll) App.unlockBodyScroll();
-        else document.body.style.overflow = '';
-
-        setStatus('完了しました。', false);
-
-      }catch(e){
-        console.error(e);
-        busy.hide();
-
-        // 入力モーダルは残す（戻って修正できる）
-        setModalStatus('保存に失敗しました：' + (e.message||e), false);
-        App.modal?.error('保存に失敗しました：' + (e.message||e));
-
-      }finally{
-        mSave.disabled = false;
-        // 失敗時はメッセージ残したいので、成功時だけ戻したい場合はここは消してOK
-        // setModalStatus('入力してください。', false);
-      }
-    }
-
+  }
 
   function toggleAllByStatus(status){
     const f = getFilter();
@@ -797,6 +898,7 @@ window.accountingInit = function accountingInit(){
 
   // ===== 入力補助（blur）=====
   function showFieldWarn(inputEl, msg){
+    if(!inputEl) return;
     const id = inputEl.id + '_warn';
     let w = document.getElementById(id);
     if(!w){
@@ -814,7 +916,6 @@ window.accountingInit = function accountingInit(){
 
   function bindBasicFieldBehaviors(){
     if(!mTitleInput) return;
-
     mTitleInput.onblur = () => {
       const v = (mTitleInput.value || '').trim();
       if(!v) showFieldWarn(mTitleInput,'経費内容は必須です。');
@@ -822,7 +923,31 @@ window.accountingInit = function accountingInit(){
     };
   }
 
-  // ---- events (二重代入しない / addEventListenerで統一)
+  // ===== 保存済み領収書の削除ボタン =====
+  if(btnDeleteReceipt){
+    btnDeleteReceipt.addEventListener('click', async ()=>{
+      if(modalMode !== 'edit') return;
+      if(!String(originalReceiptUrl||'').trim()) return;
+
+      const ok = await App.modal?.confirm('保存済みの領収書を削除します。よろしいですか？',{
+        okText:'削除する', cancelText:'やめる'
+      });
+      if(!ok) return;
+
+      // UI上は「削除予定」として扱う
+      receiptDeleteRequested = true;
+      currentReceiptUrl = '';
+      setReceiptLink('');
+
+      // 差し替えのために選んでいたファイルもクリア（混乱防止）
+      if(mFile) mFile.value = '';
+      updatePlannedFileName();
+
+      App.modal?.info('削除を予約しました（登録を押すと反映されます）');
+    });
+  }
+
+  // ---- events
   btnAdd.addEventListener('click', openCreate);
 
   btnEdit.addEventListener('click', ()=>{
@@ -841,15 +966,20 @@ window.accountingInit = function accountingInit(){
   btnToDone.addEventListener('click', ()=> bulkUpdate('精算依頼済み', '精算済み'));
 
   mClose.addEventListener('click', closeModal);
+
   mSave.addEventListener('click', async ()=>{
     const built = await buildSavePayload();
     if(!built) return;
-    const ok = await App.modal?.confirm(buildConfirmText(built.payload), {
+
+    const confirmText = buildConfirmText(built.payload, built.ctx);
+
+    const ok = await App.modal?.confirm(confirmText, {
       title: 'この内容で登録します。よろしいですか？',
       okText: 'はい',
       cancelText: 'いいえ'
     });
     if(!ok) return;
+
     await performSave(built);
   });
 
@@ -866,20 +996,25 @@ window.accountingInit = function accountingInit(){
     render();
   });
 
+  // ファイル名プレビュー更新
   mPayDate.addEventListener('input', updatePlannedFileName);
   mPayer.addEventListener('change', updatePlannedFileName);
   mTitleInput.addEventListener('input', updatePlannedFileName);
-  mFile.addEventListener('change', updatePlannedFileName);
+  mFile.addEventListener('change', ()=>{
+    // 新規添付したら、削除予約は解除（＝新しいファイルで置き換える意図が明確）
+    if(mFile.files && mFile.files[0]){
+      receiptDeleteRequested = false;
+      // 削除ボタンは既存URLがあり、削除予約が解除された時のみ復活する
+      setReceiptLink(currentReceiptUrl || originalReceiptUrl || '');
+    }
+    updatePlannedFileName();
+  });
 
   // ---- init
   (async ()=>{
     try{
       setStatus('読み込み中...', true);
       allExpenses = await loadAll();
-
-      const statuses = Array.from(new Set(allExpenses.map(x=>String(x.status||'').trim()).filter(Boolean)));
-      console.log('accounting statuses:', statuses);
-
       selected.clear();
       render();
     }catch(e){
@@ -888,10 +1023,7 @@ window.accountingInit = function accountingInit(){
       App.modal?.error('読み込みに失敗しました：' + (e.message||e));
     }
   })();
+
   bindBasicFieldBehaviors();
 };
 </script>
-
-
-
-

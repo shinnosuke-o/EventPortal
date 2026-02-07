@@ -143,7 +143,14 @@ function api_upsertExpense(payload){
     const payer = String(data.payer||'');
     const payDate = data.payDate ? new Date(String(data.payDate)+'T00:00:00') : null;
 
-    const receiptUrl = String(data.receiptUrl||'');
+    // ★追加：削除指示（新規添付なしで削除したい場合に使う）
+    const removeReceipt = String(data.removeReceipt || '') === 'true' || data.removeReceipt === true;
+    const oldReceiptUrl = String(data.oldReceiptUrl || '').trim();
+
+    // receiptUrl は「削除指示があれば空にする」
+    let receiptUrl = String(data.receiptUrl||'').trim();
+    if(removeReceipt) receiptUrl = '';
+
     const status = String(data.status||ACCOUNT_STATUS_DEFAULT);
 
     let requestDate = data.requestDate ? new Date(String(data.requestDate)+'T00:00:00') : null;
@@ -158,11 +165,20 @@ function api_upsertExpense(payload){
     const sh = ss.getSheetByName(CONFIG.ACCOUNT_SHEET_NAME);
     if(!sh) return { ok:false, message:'シートが見つかりません：' + CONFIG.ACCOUNT_SHEET_NAME };
 
-    const rowValues = [[ title, desc, payer, payDate, receiptUrl, status, requestDate, settleDate ]]; // B:I
-
     if(mode === 'edit'){
       const rowNumber = Number(payload?.rowNumber);
-      if(!Number.isFinite(rowNumber) || rowNumber < ACCOUNT_DATA_START_ROW) return { ok:false, message:'修正対象行が不正です。' };
+      if(!Number.isFinite(rowNumber) || rowNumber < ACCOUNT_DATA_START_ROW) {
+        return { ok:false, message:'修正対象行が不正です。' };
+      }
+
+      // ★追加：既存領収書の削除（新規添付なしでの削除）
+      // ※フロントが oldReceiptUrl を送ってきた時だけ Drive 側も削除する
+      if(removeReceipt && oldReceiptUrl){
+        // 失敗したら中断（誤ってシートだけ消えるのを防ぐ）
+        deleteReceiptByUrl_(oldReceiptUrl);
+      }
+
+      const rowValues = [[ title, desc, payer, payDate, receiptUrl, status, requestDate, settleDate ]]; // B:I
       sh.getRange(rowNumber, ACCOUNT_COL.TITLE, 1, ACCOUNT_DATA_COLS_NO_SEQ).setValues(rowValues);
 
       out.ok = true;
@@ -172,9 +188,10 @@ function api_upsertExpense(payload){
     }
 
     // create: B列（経費内容）基準で末尾追加
-    const lastDataRow = findLastDataRowByCol_(sh, ACCOUNT_COL.TITLE, ACCOUNT_DATA_START_ROW); // col=2(B), startRow=2
+    const lastDataRow = findLastDataRowByCol_(sh, ACCOUNT_COL.TITLE, ACCOUNT_DATA_START_ROW);
     const appendRow = Math.max(ACCOUNT_DATA_START_ROW, lastDataRow + 1);
 
+    const rowValues = [[ title, desc, payer, payDate, receiptUrl, status, requestDate, settleDate ]]; // B:I
     sh.getRange(appendRow, ACCOUNT_COL.TITLE, 1, ACCOUNT_DATA_COLS_NO_SEQ).setValues(rowValues);
 
     out.ok = true;
