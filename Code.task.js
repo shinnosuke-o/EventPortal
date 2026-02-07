@@ -1,13 +1,12 @@
-﻿/***********************
+/***********************
  * TASKS
  ***********************/
 const TASK_DATA_START_ROW = 2;
 const TASK_DATA_START_COL = 2;
 const TASK_DATA_COLS = 8;
 
-function api_getTasks(payload) {
+function api_getTasks() {
   return safeApi_(() => {
-    guard_(payload || {});
     const ss = openSS_(CONFIG.TASK_SS_ID);
     const sh = mustSheet_(ss, CONFIG.TASK_SHEET_NAME);
 
@@ -42,6 +41,7 @@ function api_getTasks(payload) {
 function api_upsertTask(payload) {
   return safeApi_(() => {
     guard_(payload || {});
+    return withWriteLockAndAudit_('api_upsertTask', payload || {}, () => {
     const mode = String(payload?.mode || '').trim();
     const data = payload?.data || {};
 
@@ -76,6 +76,7 @@ function api_upsertTask(payload) {
     sh.getRange(appendRow, TASK_DATA_START_COL, 1, TASK_DATA_COLS).setValues(rowValues);
 
     return { ok: true, message: '追加しました。', rowNumber: appendRow };
+    });
   });
 }
 

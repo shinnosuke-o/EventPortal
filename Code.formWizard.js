@@ -1,4 +1,4 @@
-﻿/***********************
+/***********************
  * FORM CREATE
  ***********************/
 const FORM_TITLE_SUFFIX = '出欠確認';
@@ -117,6 +117,7 @@ function addItemToForm_(form, r) {
 function api_createAttendanceForm(payload) {
   return safeApi_(() => {
     guard_(payload || {});
+    return withWriteLockAndAudit_('api_createAttendanceForm', payload || {}, () => {
     const DEST_SS_ID = CONFIG.MASTER_SS_ID;
     const FOLDER_ID = CONFIG.ATTEND_FORM_FOLDER_ID;
 
@@ -204,6 +205,7 @@ function api_createAttendanceForm(payload) {
       editUrl: form.getEditUrl(),
       publishedUrl: form.getPublishedUrl()
     };
+    });
   });
 }
 

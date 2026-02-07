@@ -1,4 +1,4 @@
-﻿/***********************
+/***********************
  * ACCOUNTING
  ***********************/
 const ACCOUNT_DATA_START_ROW = 2;
@@ -21,10 +21,8 @@ const ACCOUNT_STATUS_DONE = '精算済み';
 const ACCOUNT_PAYDATE_PLACEHOLDER = 'yyyyMMdd';
 const ACCOUNT_FILENAME_MAX = 40;
 
-function api_listExpenses(payload) {
-  
-  guard_(payload || {});
-const out = { ok:false, message:'', expenses:[] };
+function api_listExpenses() {
+  const out = { ok:false, message:'', expenses:[] };
 
   try {
     const ss = openSS_(CONFIG.TASK_SS_ID);
@@ -88,9 +86,9 @@ const out = { ok:false, message:'', expenses:[] };
 }
 
 function api_uploadReceipt(payload){
-  
   guard_(payload || {});
-try{
+  return withWriteLockAndAudit_('api_uploadReceipt', payload || {}, () => {
+  try{
     const mime = String(payload?.mime||'');
     const base64 = String(payload?.base64||'');
     if(!mime || !base64) return { ok:false, message:'file is required' };
@@ -131,12 +129,14 @@ try{
   }catch(e){
     return { ok:false, message:e?.message||String(e) };
   }
+
+  });
 }
 
 function api_upsertExpense(payload){
-  
   guard_(payload || {});
-const out = { ok:false, message:'', rowNumber:null };
+  return withWriteLockAndAudit_('api_upsertExpense', payload || {}, () => {
+  const out = { ok:false, message:'', rowNumber:null };
 
   try{
     const mode = String(payload?.mode || 'create'); // create/edit
@@ -208,12 +208,14 @@ const out = { ok:false, message:'', rowNumber:null };
   }catch(e){
     return { ok:false, message:e?.message || String(e) };
   }
+
+  });
 }
 
 function api_bulkUpdateExpenseStatus(payload){
-  
   guard_(payload || {});
-try{
+  return withWriteLockAndAudit_('api_bulkUpdateExpenseStatus', payload || {}, () => {
+  try{
     const rowNumbers = Array.isArray(payload?.rowNumbers) ? payload.rowNumbers : [];
     const newStatus = String(payload?.newStatus || '').trim();
     if(!rowNumbers.length) return { ok:false, message:'rowNumbers is empty' };
@@ -245,6 +247,8 @@ try{
   }catch(e){
     return { ok:false, message:e?.message || String(e) };
   }
+
+  });
 }
 
 function findLastDataRowByCol_(sh, col, startRow){

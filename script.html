@@ -306,18 +306,10 @@ function renderWizard(){
    Server Call
 ========================= */
 function callServer(fn, payload) {
-  // payload は必ず object に統一（CSRFトークン付与のため）
-  let p;
-  if (payload == null) p = {};
-  else if (typeof payload === 'object' && !Array.isArray(payload)) p = payload;
-  else p = { value: payload };
-
-  // CSRF (server side: verifyCsrf_)
-  if (window.__CSRF__) p.__csrf = window.__CSRF__;
-
   return new Promise((resolve, reject) => {
     google.script.run
       .withSuccessHandler((res) => {
+        console.log('callServer success:', fn, res);
         if (res == null) {
           resolve({ ok: false, message: 'サーバー応答が空です（null/undefined）' });
           return;
@@ -332,11 +324,9 @@ function callServer(fn, payload) {
         console.error('callServer failure:', fn, err);
         const msg = (err && err.message) ? err.message : String(err);
         reject(new Error(msg));
-      })[fn](p);
+      })[fn](payload);
   });
 }
-
-
 
 
 /* =========================
@@ -397,7 +387,7 @@ async function navigateTo(page, { replace = false } = {}) {
   `;
 
   try {
-    const res = await callServer('api_getPageHtml', { page });
+    const res = await callServer('api_getPageHtml', page);
     if(!res || res.ok !== true) throw new Error(res?.message || '画面の取得に失敗しました');
     const html = res.data || res.html || '';
     injectHtmlWithScripts(app, html);

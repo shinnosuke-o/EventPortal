@@ -1,4 +1,4 @@
-﻿/***********************
+/***********************
  * PUBLIC CHECK SHEET
  ***********************/
 const PUBLIC_SHEET_SUFFIX = '出欠確認_公開用';
@@ -9,6 +9,7 @@ const PUBLIC_COL_PREFIX = 'Col';
 function api_createPublicCheckSheet(payload) {
   return safeApi_(() => {
     guard_(payload || {});
+    return withWriteLockAndAudit_('api_createPublicCheckSheet', payload || {}, () => {
     const sheetName = payload?.sheetName;
     const includeCols = payload?.includeCols || [];
     if (!sheetName) throw new Error('シート選択は必須です。');
@@ -49,6 +50,7 @@ function api_createPublicCheckSheet(payload) {
       url: destUrl,
       message: '作成しました。初回は「アクセスを許可」が必要です。'
     };
+    });
   });
 }
 

@@ -550,37 +550,9 @@ window.accountingInit = function accountingInit(){
 
   function setReceiptLink(url){
     currentReceiptUrl = String(url||'').trim();
-
-    // XSS対策：innerHTML は使わず、URLは http(s) のみ許可
-    const isSafeUrl = (u)=>{
-      try{
-        const parsed = new URL(u);
-        return (parsed.protocol === 'https:' || parsed.protocol === 'http:');
-      }catch(e){
-        return false;
-      }
-    };
-
-    // 既存要素クリア
-    mReceiptLink.textContent = '';
-    while (mReceiptLink.firstChild) mReceiptLink.removeChild(mReceiptLink.firstChild);
-
-    if(currentReceiptUrl && isSafeUrl(currentReceiptUrl)){
-      const a = document.createElement('a');
-      a.className = 'link ac-break';
-      a.href = currentReceiptUrl;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.textContent = currentReceiptUrl;
-      mReceiptLink.appendChild(a);
-    }else{
-      const span = document.createElement('span');
-      span.style.color = 'var(--muted)';
-      span.textContent = '（なし）';
-      mReceiptLink.appendChild(span);
-      // 無効なURLは保持しない
-      if(currentReceiptUrl) currentReceiptUrl = '';
-    }
+    mReceiptLink.innerHTML = currentReceiptUrl
+      ? `<a class="link" href="${esc(currentReceiptUrl)}" target="_blank" rel="noopener">${esc(currentReceiptUrl)}</a>`
+      : `<span style="color:var(--muted);">（なし）</span>`;
 
     // 削除ボタン表示制御（編集モードで、削除予約されておらず、URLがある時のみ）
     const canDelete = (modalMode === 'edit') && !!currentReceiptUrl && !receiptDeleteRequested;
