@@ -396,12 +396,12 @@
     word-break: break-word;
   } */
 
-  /* ===============================
+  /* =============================
     Tabs
-    =============================== */
+  ============================= */
   .tabs{
-    position: sticky;
-    top: var(--header-h);
+    /* 通常時はページと一緒に流れる */
+    position: relative;
     z-index: 1000;
     display:flex;
     gap:6px;
@@ -410,8 +410,28 @@
     backdrop-filter: blur(var(--blur-sm));
     padding: 8px 12px;
     border-bottom:1px solid var(--line);
+
+    will-change: transform;
+    transform: translateY(0);
+    transition: none; /* 追従はJSで1:1にするのでアニメは切る */
   }
 
+  /* JSが固定化する状態 */
+  .tabs.is-floating{
+    position: fixed;
+    top: var(--header-h); /* 既存header分だけ下げる*/
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+
+  /* fixed化してもレイアウトがガクッとならないためのプレースホルダ */
+  .tabs-placeholder{
+    height: 0px;
+  }
+
+  /* 既存の .tab はそのままでOK（貼っておきます） */
   .tab{
     white-space:nowrap;
     text-decoration:none;
@@ -420,7 +440,7 @@
     padding:10px 12px;
     border-radius:999px;
     font-size:13px;
-    transition:.15s;
+    transition: .15s;
   }
   .tab:hover{ border-color:#34507a; color:var(--text); }
   .tab.active{

@@ -574,6 +574,137 @@ async function navigateTo(page, { replace = false } = {}) {
 
   bindMenu();
 })();
+
+(function(){
+  const tabs = document.querySelector('.tabs');
+  if(!tabs) return;
+
+  // fixed化でレイアウトが詰まるのを防ぐ
+  let placeholder = tabs.nextElementSibling;
+  if(!placeholder || !placeholder.classList.contains('tabs-placeholder')){
+    placeholder = document.createElement('div');
+    placeholder.className = 'tabs-placeholder';
+    tabs.after(placeholder);
+  }
+
+  const rootStyle = getComputedStyle(document.documentElement);
+
+  const clamp = (v, min, max)=> Math.max(min, Math.min(max, v));
+
+  let H = 0;              // tabsの高さ
+  let tabsTop = 0;        // tabsの通常位置（document座標）
+  let headerH = 0;        // --header-h のpx
+  let reveal = 0;         // 0..H（0=完全に隠す, H=完全に表示）
+  let lastY = 0;
+  let rafId = null;
+  let floating = false;
+
+  function readHeaderH(){
+    const v = (rootStyle.getPropertyValue('--header-h') || '').trim();
+    // "56px" でも "56" でもOK
+    const n = parseFloat(v);
+    headerH = Number.isFinite(n) ? n : 0;
+  }
+
+  function measure(){
+    readHeaderH();
+
+    // tabs が通常フローにある前提で document座標を取る
+    const rect = tabs.getBoundingClientRect();
+    H = rect.height || 0;
+    tabsTop = (Math.max(0, window.scrollY || 0)) + rect.top;
+
+    // 初期は表示
+    reveal = H;
+    applyTransform();
+
+    // placeholderは通常時0
+    if(!floating) placeholder.style.height = '0px';
+  }
+
+  function setFloating(on){
+    if(on === floating) return;
+    floating = on;
+
+    if(floating){
+      tabs.classList.add('is-floating');
+      // fixed化で消えた分の高さを埋める
+      placeholder.style.height = H + 'px';
+      // fixedになった瞬間にチラつかないよう、現状のrevealで即反映
+      applyTransform();
+    }else{
+      tabs.classList.remove('is-floating');
+      placeholder.style.height = '0px';
+      tabs.style.transform = 'translateY(0px)';
+      reveal = H;
+    }
+  }
+
+  function applyTransform(){
+    // reveal: 0..H
+    // transform: -H..0（上に隠す → 0で表示）
+    const ty = reveal - H;
+    tabs.style.transform = `translateY(${ty}px)`;
+  }
+
+  function tick(){
+    rafId = null;
+
+    // iOSのオーバースクロール対策：負値は0扱いにする
+    const y = Math.max(0, window.scrollY || 0);
+    const dy = y - lastY;
+    lastY = y;
+
+    // ★追加：最下部バウンス対策（反動の「上スク」に見えるdy<0を無視）
+    const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const nearBottom = (maxY - y) < 8; // 8pxは目安。厳しければ 12〜20 に調整
+    // ★追加ここまで
+
+    // tabsがheader位置に到達したら、固定化して「どこからでも出せる」状態へ
+    // （headerHぶん下げて固定するので、その分だけ早めに切り替え）
+    const shouldFloat = y >= (tabsTop - headerH);
+
+    // 画面上部にいるとき（反動含む）は必ず表示＆通常フローへ
+    if(y <= 0){
+      setFloating(false);
+      return;
+    }
+
+    setFloating(shouldFloat);
+
+    // fixed化していない間は、ページと一緒に流れるだけ（制御しない）
+    if(!floating) return;
+
+    // ★追加：最下部付近で dy<0 なら「出てくる」計算をしない（現状維持）
+    if(nearBottom && dy < 0){
+      return;
+    }
+
+    // dy が +（下スクロール）→ reveal減る（隠れる）
+    // dy が -（上スクロール）→ reveal増える（出てくる）
+    // ※「少しでも上スクロールで出る」を満たすため閾値は設けない
+    reveal = clamp(reveal - dy, 0, H);
+    applyTransform();
+  }
+
+  function onScroll(){
+    if(rafId) return;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  window.addEventListener('scroll', onScroll, { passive:true });
+  window.addEventListener('resize', ()=>{
+    // 高さやtabsTopがズレるので再計測
+    measure();
+    onScroll();
+  }, { passive:true });
+
+  // 初期化
+  lastY = Math.max(0, window.scrollY || 0);
+  measure();
+  onScroll();
+})();
+
 </script>
 
 

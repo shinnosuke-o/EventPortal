@@ -1,4 +1,4 @@
-﻿<section class="card">
+<section class="card">
   <h1>出欠集計</h1>
   <div class="notice" id="as_status">準備中...</div>
 </section>
@@ -46,7 +46,7 @@
   </div>
 
   <div class="btn-row" style="margin-top:10px; justify-content:flex-end; gap:10px; flex-wrap:wrap;">
-    <button id="as_copySummary" class="btn secondary">人数をコピー</button>
+    <button id="as_copySummary" class="btn secondary">サマリーをコピー</button>
     <button id="as_copyNeed" class="btn secondary">未定者・未回答者をコピー</button>
   </div>
 </section>
@@ -57,6 +57,7 @@
     <div id="as_participants"></div>
   </div>
   <div class="btn-row" style="margin-top:12px; justify-content:flex-end;">
+    <button id="as_copyParticipants" class="btn secondary">参加者をコピー</button>
     <button id="as_importOpen" class="btn">参加者DBにインポート</button>
   </div>
 </section>
@@ -196,6 +197,7 @@ window.attendanceSummaryInit = function attendanceSummaryInit(){
     copyUndecidedBtn: $('#as_copyUndecided'),
     copyUnansweredBtn: $('#as_copyUnanswered'),
     copyNeedBtn: $('#as_copyNeed'),
+    copyParticipantsBtn: $('#as_copyParticipants'),
   };
 
   // =====================
@@ -526,6 +528,16 @@ ${atStr} 時点
     return { cnt, text };
   }
 
+  function buildCopyParticipants(res){
+    const items = Array.isArray(res?.participants) ? res.participants : [];
+    const lines = items.map(x=>{
+      const name = String(x.name||'').trim();
+      const y = String(x.yosana||'').trim();
+      return `${name}(${y})`;
+    });
+    return `■参加者\n` + (lines.length ? lines.join('\n') : '該当なし');
+  }
+
   function buildCopyUndecided(res){
     const items = Array.isArray(res?.undecided) ? res.undecided : [];
     const lines = items.map(x=>{
@@ -572,8 +584,21 @@ ${atStr} 時点
         try{
           if(!state.lastSummary) throw new Error('先に集計してください');
           await copyToClipboard(state.lastSummary.summaryText);
-          App.modal?.info('人数集計をコピーしました');
-          setStatus('人数集計をコピーしました。', false);
+          App.modal?.info('集計サマリーをコピーしました');
+          setStatus('集計サマリーをコピーしました。', false);
+        }catch(e){
+          App.modal?.error('コピーに失敗しました：' + (e.message||e));
+        }
+      };
+    }
+
+    if(dom.copyParticipantsBtn){
+      dom.copyParticipantsBtn.onclick = async ()=>{
+        try{
+          if(!state.lastSummary) throw new Error('先に集計してください');
+          await copyToClipboard(buildCopyParticipants(state.lastSummary.res));
+          App.modal?.info('参加者一覧をコピーしました');
+          setStatus('参加者一覧をコピーしました。', false);
         }catch(e){
           App.modal?.error('コピーに失敗しました：' + (e.message||e));
         }
