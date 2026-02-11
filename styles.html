@@ -793,4 +793,250 @@
     color: rgba(255,255,255,.45);
     border-top:1px solid var(--line);
   }
+
+  /* icon buttons */
+  .icon-btn{
+    width:44px;
+    height:44px;
+    padding:0;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:0;
+  }
+  .icon-btn svg{
+    display:block;
+  }
+
+  /* screen-reader only */
+  .sr-only{
+    position:absolute;
+    width:1px;
+    height:1px;
+    padding:0;
+    margin:-1px;
+    overflow:hidden;
+    clip:rect(0,0,0,0);
+    white-space:nowrap;
+    border:0;
+  }
+
+  .icon-btn.btn-primary{
+    box-shadow: 0 0 0 2px rgba(78,161,255,.35) inset;
+  }
+
+  /* ===== Calendar header layout ===== */
+  .tk-cal-head{
+    display:grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "title nav"
+      "today nav";
+    gap:8px 10px;
+    align-items:center;
+  }
+  .tk-cal-h2{ grid-area:title; margin:0; }
+
+  .tk-cal-nav{
+    position: relative;
+    display:flex;
+    align-items:center;
+    height:44px;
+  }
+
+  /* ===== 中央固定グループ ===== */
+  .tk-cal-center{
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%, -50%);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  /* タイトル */
+  .tk-cal-title{
+    min-width:110px;
+    text-align:center;
+    font-weight:700;
+    white-space:nowrap;
+    pointer-events:none;
+  }
+
+  /* ===== 今月ボタンは右端 ===== */
+  .tk-cal-today{
+    margin-left:auto;
+  }
+
+  /* SP微調整 */
+  @media (max-width:520px){
+    .tk-cal-title{
+      min-width:96px;
+      font-size:14px;
+    }
+  }
+
+  /* SPだけ：行間を詰める＆navを右寄せで安定 */
+  @media (max-width: 520px){
+    .tk-cal-head{
+      grid-template-columns: 1fr auto;
+      gap:8px 8px;
+    }
+    .tk-cal-title{ min-width:96px; }
+    .tk-cal-nav .btn{ width:44px; height:44px; padding:0; }
+  }
+
+  /* ===== Calendar gridlines (uniform) ===== */
+  :root{
+    --cal-line: var(--line);
+    --cal-gap: 1px;                /* 線の太さ */
+    --cal-cell-bg: rgba(9,13,21,.5);
+    --cal-radius: 12px;
+  }
+
+  /* 曜日行 */
+  #tk_calWeekdays{
+    display:grid;
+    grid-template-columns:repeat(7, 1fr);
+    gap:0 !important;
+  }
+  #tk_calWeekdays > div{
+    text-align:center;
+    padding:6px 0;
+    border-bottom:1px solid var(--cal-line);
+  }
+
+  /* ===== Calendar grid (final stable) ===== */
+  /* ★重要：tooltipを切らないため overflow を hidden にしない */
+  #tk_calendar{
+    display:grid;
+    grid-template-columns:repeat(7, 1fr);
+    gap:0 !important;
+    padding: var(--cal-gap);
+    border-radius: var(--cal-radius);
+    overflow: visible;           /* ← ここが変更点（tooltip対策） */
+    align-items:stretch;
+    grid-auto-rows: minmax(140px, auto);
+  }
+
+  /* セル */
+  .tk-cal-cell,
+  .tk-cal-blank{
+    margin: var(--cal-gap);
+    background: var(--cal-cell-bg);
+    padding: 10px 10px 12px;
+    border-radius: 10px;
+
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+
+    max-height:none;
+    overflow: visible;           /* 念のため */
+    min-height: 140px;
+  }
+
+  /* タスク領域 */
+  .tk-cal-cell [data-slot="tasks"]{
+    margin-top:6px;
+    display:grid;
+    gap:4px;
+    flex:1 1 auto;
+  }
+
+  /* 空セル */
+  .tk-cal-blank{
+    background: transparent;
+    min-height: 140px;
+  }
+
+  /* ===== SP ===== */
+  @media (max-width:520px){
+    #tk_calendar{
+      border-radius:0;
+      grid-auto-rows: minmax(64px, auto);
+    }
+
+    .tk-cal-cell,
+    .tk-cal-blank{
+      border-radius:0;
+      padding: 8px 8px 8px;
+      min-height: 64px;
+    }
+  }
+
+  /* ===== Task Chip wrapper (calendar) ===== */
+  /* ★チップとtooltipを分離：.tk-chip をコンテナ、見た目は .tk-chip-label に寄せる */
+  .tk-chip{
+    position:relative;           /* ★tooltipの基準点 */
+  }
+
+  /* 見た目（元の .tk-chip の見た目をそのまま移す） */
+  .tk-chip-label{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:6px 8px;
+    background:rgba(9,13,21,.30);
+    cursor:pointer;
+    font-size:12px;
+    line-height:1.25;
+    color:var(--text);
+    overflow:hidden;
+
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    line-clamp: 2;
+    -webkit-box-orient:vertical;
+  }
+
+  /* 選択時（JSが .is-selected を .tk-chip に付ける想定） */
+  .tk-chip.is-selected .tk-chip-label{
+    outline:2px solid rgba(78,161,255,.55);
+    background:rgba(78,161,255,.08);
+  }
+
+  /* ===== Tooltip ===== */
+  .tk-tooltip{
+    display:none;
+    position:absolute;
+
+    /* ★中央寄せ＆画面外に飛びにくい */
+    left:50%;
+    transform:translateX(-50%);
+    top:calc(100% + 8px);
+
+    min-width:220px;
+    max-width:min(320px, 90vw);
+
+    padding:8px 10px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:rgba(18,26,39,.98);
+    color:var(--text);
+    font-size:12px;
+    line-height:1.5;
+    white-space:normal;
+
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    z-index:10080;              /* ★前面 */
+    pointer-events:none;        /* hover判定を邪魔しない */
+    overflow-wrap:anywhere;
+    word-break:break-word;
+  }
+
+  /* PC hover（hover可能デバイスのみ） */
+  @media (hover:hover){
+    .tk-chip:hover .tk-tooltip{
+      display:block;
+    }
+  }
+
+  /* SP用（JSで付与） */
+  .tk-chip.is-open .tk-tooltip{
+    display:block;
+  }
+
+
+
 </style>
