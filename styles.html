@@ -954,13 +954,13 @@
   /* ===== SP ===== */
   @media (max-width:520px){
     #tk_calendar{
-      border-radius:0;
+      border-radius:2px;
       grid-auto-rows: minmax(64px, auto);
     }
 
     .tk-cal-cell,
     .tk-cal-blank{
-      border-radius:0;
+      border-radius:2px;
       padding: 8px 8px 8px;
       min-height: 64px;
     }
@@ -989,6 +989,13 @@
     line-clamp: 2;
     -webkit-box-orient:vertical;
   }
+  @media (max-width:520px) {
+    .tk-chip-label{
+      padding:0.77px 1px;
+      font-size:9px;
+      border-radius:2px;
+    }
+  }
 
   /* 選択時（JSが .is-selected を .tk-chip に付ける想定） */
   .tk-chip.is-selected .tk-chip-label{
@@ -1006,7 +1013,7 @@
     transform:translateX(-50%);
     top:calc(100% + 8px);
 
-    min-width:220px;
+    min-width:119px;
     max-width:min(320px, 90vw);
 
     padding:8px 10px;

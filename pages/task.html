@@ -576,16 +576,16 @@ window.taskInit = function taskInit(){
   // =========
   function buildTaskTipHtml(t){
     const due = time.toYMD(t.due) || '';
+    const meta = [
+      t.priority && `優先度：${t.priority}`,
+      t.status && `状態：${t.status}`,
+      due && `期限：${due}`,
+      t.assignee && `担当：${t.assignee}`
+    ].filter(Boolean);
+
     const lines = [
       `<div style="font-weight:700; margin-bottom:4px;">${App.escapeHtml(t.task || '')}</div>`,
-      `<div style="color:var(--muted); font-size:11px;">` +
-      `${App.escapeHtml([
-        t.status ? `状態：${t.status}` : '',
-        t.priority ? `優先度：${t.priority}` : '',
-        t.assignee ? `担当：${t.assignee}` : '',
-        due ? `期限：${due}` : ''
-      ].filter(Boolean).join(' / '))}` +
-      `</div>`,
+      meta.length ? `<div style="color:var(--muted); font-size:11px;">${meta.map(v => App.escapeHtml(v)).join('<br>')}</div>` : '',
       t.note ? `<div style="margin-top:6px; font-size:11px; color:var(--muted); white-space:pre-wrap;">${App.escapeHtml(t.note)}</div>` : ''
     ];
     return lines.join('');
