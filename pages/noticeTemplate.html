@@ -22,172 +22,339 @@
   </div>
 
   <div class="field" style="margin-top:14px;">
-    <div class="label">案内テンプレート</div>
+    <div class="label">案内文（生成結果）</div>
     <textarea id="nt_text" rows="16" placeholder="イベントを選択するとここに案内文が表示されます。"></textarea>
 
     <div class="btn-row" style="margin-top:10px;">
-      <!-- ★右寄せ用のスペーサ -->
       <div style="flex:1 1 auto;"></div>
       <button id="nt_copyBtn" class="btn btn-primary" type="button">コピー</button>
     </div>
   </div>
 </section>
 
+<!-- ✅ テンプレート編集（新規） -->
+<section class="card">
+  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+    <h2 style="margin:0;">テンプレート編集</h2>
+    <div style="flex:1 1 auto;"></div>
+    <button id="nt_tplToggle" class="btn secondary" type="button">開く</button>
+  </div>
+
+  <div id="nt_tplArea" style="display:none; margin-top:12px;">
+    <div style="
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin:10px 0;
+      align-items:center;
+    ">
+      <div style="font-size:12px; color:var(--muted); margin-right:6px;">
+        差し込み：
+      </div>
+
+      <button class="btn secondary nt-insert" type="button" data-token="《イベント名》">イベント名</button>
+      <button class="btn secondary nt-insert" type="button" data-token="《開催日》">開催日</button>
+      <button class="btn secondary nt-insert" type="button" data-token="《開催場所》">開催場所</button>
+      <button class="btn secondary nt-insert" type="button" data-token="《練習日》">練習日</button>
+      <button class="btn secondary nt-insert" type="button" data-token="《参加条件》">参加条件</button>
+      <button class="btn secondary nt-insert" type="button" data-token="《回答期限》">回答期限</button>
+      <button class="btn secondary nt-insert" type="button" data-token="《回答フォームURL》">回答フォームURL</button>
+      <button class="btn secondary nt-insert" type="button" data-token="《確認シートURL》">確認シートURL</button>
+    </div>
+
+    <div class="field">
+      <div class="label">案内テンプレート（保存されます）</div>
+      <textarea id="nt_tpl" rows="16"></textarea>
+    </div>
+
+    <div class="btn-row" style="margin-top:10px; display:flex; gap:10px; justify-content:flex-end;">
+      <button id="nt_tplReset" class="btn secondary" type="button">初期化</button>
+      <button id="nt_tplSave" class="btn btn-primary" type="button">保存</button>
+    </div>
+  </div>
+</section>
+
 <script>
-  window.noticeTemplateInit = async function noticeTemplateInit() {
-    const App = window.App || {};
-    const $ = (s)=>document.querySelector(s);
-    const sel = $('#nt_eventSelect');
-    const txt = $('#nt_text');
-    const statusEl = $('#nt_status');
-    const reloadBtn = document.querySelector('.sheet-reload-btn');
-    const copyBtn = document.querySelector('.btn.btn-primary'); // コピーだけの想定。必要ならid付け推奨
+window.noticeTemplateInit = async function noticeTemplateInit() {
+  const App = window.App || {};
+  const $ = (s)=>document.querySelector(s);
 
-    const setStatus = (text, busy) => App.setStatus(statusEl, text, busy);
+  const sel = $('#nt_eventSelect');
+  const txt = $('#nt_text');
+  const statusEl = $('#nt_status');
 
-    const WEEK = ['日','月','火','水','木','金','土'];
-    function toMDW(v){
-      if(!v) return '';
-      const d = (v instanceof Date) ? v : new Date(v);
-      if (isNaN(d.getTime())) return '';
-      return `${d.getMonth()+1}/${d.getDate()}(${WEEK[d.getDay()]})`;
-    }
-    function normalizePractice(text){
-      return (text || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).join('、');
-    }
-    function buildTemplate(d){
-      const eventName = d.eventName || '';
-      const place = d.place || '';
-      const condition = d.condition || '';
-      const practice = normalizePractice(d.practice || '');
+  const reloadBtn = $('#nt_reloadBtn');
+  const copyBtn = $('#nt_copyBtn');
 
-      const from = d.dateFrom ? new Date(d.dateFrom) : null;
-      const to = d.dateTo ? new Date(d.dateTo) : null;
-      const deadline = d.deadline ? new Date(d.deadline) : null;
+  const tplToggle = $('#nt_tplToggle');
+  const tplArea   = $('#nt_tplArea');
+  const tplText   = $('#nt_tpl');
+  const tplSave   = $('#nt_tplSave');
+  const tplReset  = $('#nt_tplReset');
 
-      const dateLine = (() => {
-        if (!from) return '';
-        const f = toMDW(from);
-        if (!to || from.toDateString() === to.toDateString()) return f;
-        return `${f}～${toMDW(to)}`;
-      })();
+  const tplInserts = document.querySelectorAll('.nt-insert');
 
-      return `【${eventName}出欠】
+  const setStatus = (text, busy) => App.setStatus(statusEl, text, busy);
 
-⚠️回答期限：${toMDW(deadline)}⚠️
+  // ==========================
+  // Template (default)
+  // ==========================
+  const DEFAULT_TEMPLATE =
+`【《イベント名》出欠】
+
+⚠️回答期限：《回答期限》⚠️
 未定の方も必ず回答するようにしてください。
 
 ●イベント名
-${eventName}
+《イベント名》
 ●開催日
-${dateLine}
+《開催日》
 ●開催場所
-${place}
+《開催場所》
 ●練習日(予定)
-${practice}
+《練習日》
 ●参加条件
-${condition}
+《参加条件》
 
 ■回答フォーム
-${d.formUrl || ''}
+《回答フォームURL》
 ■回答確認シート
-${d.publicUrl || ''}
+《確認シートURL》
 `;
-    }
 
-    async function loadEventList(){
-      setStatus('イベント一覧を読み込み中...', true);
+  // 現在のテンプレ（メモリ上）
+  let currentTemplate = DEFAULT_TEMPLATE;
 
-      const res = await App.callWithTimeout('api_listGuideEvents', {}, 15000);
-      if (!res || res.ok !== true) throw new Error(res?.message || 'イベント一覧取得に失敗しました');
-      const names = res.data || [];
+  // ==========================
+  // Helpers
+  // ==========================
+  const WEEK = ['日','月','火','水','木','金','土'];
 
-      sel.innerHTML = '<option value="">選択してください</option>';
-      (names || []).forEach(n=>{
-        const v = String(n ?? '').trim();
-        if(!v) return;
-        const opt = document.createElement('option');
-        opt.value = v;
-        opt.textContent = v;
-        sel.appendChild(opt);
-      });
+  function toMDW(v){
+    if(!v) return '';
+    const d = (v instanceof Date) ? v : new Date(v);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getMonth()+1}/${d.getDate()}(${WEEK[d.getDay()]})`;
+  }
 
-      setStatus('イベントを選択してください。', false);
-    }
+  function normalizePractice(text){
+    return (text || '').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).join('、');
+  }
 
-    async function onSelectEvent(){
-      const name = (sel.value || '').trim();
+  function buildDateLine(d){
+    const from = d.dateFrom ? new Date(d.dateFrom) : null;
+    const to   = d.dateTo ? new Date(d.dateTo) : null;
+    if (!from) return '';
+    const f = toMDW(from);
+    if (!to || from.toDateString() === to.toDateString()) return f;
+    return `${f}～${toMDW(to)}`;
+  }
 
-      if(!name){
-        txt.value = '';
-        setStatus('イベントを選択してください。', false);
-        return;
+  function applyTemplate(d, tpl){
+    const values = {
+      '《イベント名》': d.eventName || '',
+      '《開催日》': buildDateLine(d) || '',
+      '《開催場所》': d.place || '',
+      '《練習日》': normalizePractice(d.practice || ''),
+      '《参加条件》': d.condition || '',
+      '《回答期限》': d.deadline ? toMDW(new Date(d.deadline)) : '',
+      '《回答フォームURL》': d.formUrl || '',
+      '《確認シートURL》': d.publicUrl || ''
+    };
+
+    let out = String(tpl || '');
+    Object.keys(values).forEach(k=>{
+      out = out.split(k).join(String(values[k]));
+    });
+    return out;
+  }
+
+  // ✅ 追加：差し込み（カーソル位置に入れる）
+  function insertAtCursor(textarea, insertText){
+    if (!textarea) return;
+    textarea.focus();
+    const start = (typeof textarea.selectionStart === 'number') ? textarea.selectionStart : textarea.value.length;
+    const end   = (typeof textarea.selectionEnd === 'number') ? textarea.selectionEnd : textarea.value.length;
+    const before = textarea.value.slice(0, start);
+    const after  = textarea.value.slice(end);
+    textarea.value = before + insertText + after;
+    const pos = start + insertText.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+  }
+
+  // ==========================
+  // Template load/save (Server)
+  // ==========================
+  async function loadTemplate(){
+    try{
+      const res = await App.callWithTimeout('api_getNoticeTemplate', {}, 15000, 'テンプレ取得');
+      if (res && res.ok && typeof res.template === 'string' && res.template.trim()){
+        currentTemplate = res.template;
+      } else {
+        currentTemplate = DEFAULT_TEMPLATE;
       }
-
-      setStatus('案内文を作成中...', true);
-
-      App.busy?.show('案内文を作成しています。\nしばらくお待ちください。', { title: '作成中...' });
-
-      try{
-        const res = await callServer('api_getGuideEvent', { eventName: name });
-        console.log('api_getGuideEvent res=', res);
-
-        if (!res) throw new Error('サーバー応答が空です（null）。');
-        if (!res.ok) throw new Error(res.message || '取得失敗');
-
-        const d = res.data;
-        if (!d || !d.eventName) throw new Error('イベント情報が取得できませんでした（空）。');
-
-        txt.value = buildTemplate(d);
-        setStatus('案内文を作成しました。', false);
-      } catch(e){
-        console.error(e);
-        setStatus('作成に失敗しました：' + (e.message || e), false);
-        App.modal?.error('作成に失敗しました：' + (e.message || e));
-      }finally{
-        App.busy?.hide();
-      }
+    }catch(e){
+      console.warn('template load failed -> default', e);
+      currentTemplate = DEFAULT_TEMPLATE;
     }
 
-    async function reload(){
-      sel.value = '';
-      txt.value = '';
-      await loadEventList();
+    if (tplText) tplText.value = currentTemplate;
+  }
+
+  // ✅ 修正：保存API名の間違い（'c' -> api_setNoticeTemplate）
+  async function saveTemplateToServer(newTpl){
+    const tpl = String(newTpl || '').trim();
+    if (!tpl) return App.modal?.warn('テンプレートが空です。');
+
+    App.busy?.show('テンプレートを保存しています。\nしばらくお待ちください。', { title: '保存中...' });
+
+    try{
+      const res = await App.callWithTimeout(
+        'api_setNoticeTemplate',           // ★ここが最小修正の本体
+        { template: tpl },
+        15000,
+        'テンプレ保存'
+      );
+      if (!res || !res.ok) throw new Error(res?.message || '保存に失敗しました');
+
+      currentTemplate = tpl;
+      return App.modal?.info('テンプレートを保存しました');
+    }catch(e){
+      console.error(e);
+      return App.modal?.error('テンプレ保存に失敗しました：' + (e.message || e));
+    }finally{
+      App.busy?.hide();
     }
+  }
 
-    async function copyNotice(){
-      const text = (txt.value || '').trim();
-      if(!text) return App.modal?.warn('コピーする内容がありません');
+  // ==========================
+  // Events
+  // ==========================
+  async function loadEventList(){
+    setStatus('イベント一覧を読み込み中...', true);
 
-      try{
-        if (App.copyToClipboard) await App.copyToClipboard(text);
-        else{
-          if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
-          else{
-            const tmp = document.createElement('textarea');
-            tmp.value = text;
-            document.body.appendChild(tmp);
-            tmp.select();
-            document.execCommand('copy');
-            document.body.removeChild(tmp);
-          }
-        }
-        App.modal?.info('コピーしました');
-      }catch(e){
-        console.error(e);
-        App.modal?.error('コピーに失敗しました');
-      }
-    }
+    const res = await App.callWithTimeout('api_listGuideEvents', {}, 15000, 'イベント一覧');
+    if (!res || res.ok !== true) throw new Error(res?.message || 'イベント一覧取得に失敗しました');
 
-    // 多重登録防止：上書き方式
-    sel.onchange = onSelectEvent;
-    if (reloadBtn) reloadBtn.onclick = reload;
-    if (copyBtn) copyBtn.onclick = copyNotice;
+    const names = res.data || [];
+    sel.innerHTML = '<option value="">選択してください</option>';
 
-    await loadEventList();
+    (names || []).forEach(n=>{
+      const v = String(n ?? '').trim();
+      if(!v) return;
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    });
+
     setStatus('イベントを選択してください。', false);
-  };
+  }
+
+  async function onSelectEvent(){
+    const name = (sel.value || '').trim();
+
+    if(!name){
+      txt.value = '';
+      setStatus('イベントを選択してください。', false);
+      return;
+    }
+
+    setStatus('案内文を作成中...', true);
+    App.busy?.show('案内文を作成しています。\nしばらくお待ちください。', { title: '作成中...' });
+
+    try{
+      const res = await App.callWithTimeout('api_getGuideEvent', { eventName: name }, 15000, 'イベント取得');
+      if (!res) throw new Error('サーバー応答が空です（null）。');
+      if (!res.ok) throw new Error(res.message || '取得失敗');
+
+      const d = res.data;
+      if (!d || !d.eventName) throw new Error('イベント情報が取得できませんでした（空）。');
+
+      txt.value = applyTemplate(d, currentTemplate);
+      setStatus('案内文を作成しました。', false);
+    } catch(e){
+      console.error(e);
+      setStatus('作成に失敗しました：' + (e.message || e), false);
+      App.modal?.error('作成に失敗しました：' + (e.message || e));
+    } finally{
+      App.busy?.hide();
+    }
+  }
+
+  async function reload(){
+    sel.value = '';
+    txt.value = '';
+    await loadEventList();
+  }
+
+  async function copyNotice(){
+    const text = (txt.value || '').trim();
+    if(!text) return App.modal?.warn('コピーする内容がありません');
+
+    try{
+      if (App.copyToClipboard) await App.copyToClipboard(text);
+      else if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+      else{
+        const tmp = document.createElement('textarea');
+        tmp.value = text;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+      }
+      App.modal?.info('コピーしました');
+    }catch(e){
+      console.error(e);
+      App.modal?.error('コピーに失敗しました');
+    }
+  }
+
+  // ==========================
+  // Template UI events
+  // ==========================
+  if (tplToggle){
+    tplToggle.onclick = ()=>{
+      const open = (tplArea.style.display !== 'none');
+      tplArea.style.display = open ? 'none' : '';
+      tplToggle.textContent = open ? '開く' : '閉じる';
+    };
+  }
+
+  if (tplSave){
+    tplSave.onclick = async ()=>{
+      // ✅ 保存して currentTemplate 更新
+      const ok = await saveTemplateToServer(tplText.value);
+      // ✅ 画面上の生成結果も即反映（イベント選択中なら再生成）
+      if (ok && sel.value) await onSelectEvent();
+    };
+  }
+
+  if (tplReset){
+    tplReset.onclick = ()=>{
+      tplText.value = DEFAULT_TEMPLATE;
+      App.modal?.info('初期テンプレートに戻しました（保存はまだです）');
+    };
+  }
+
+  // ==========================
+  // Bind
+  // ==========================
+  sel.onchange = onSelectEvent;
+  if (reloadBtn) reloadBtn.onclick = reload;
+  if (copyBtn) copyBtn.onclick = copyNotice;
+
+  tplInserts.forEach(btn=>{
+    btn.onclick = ()=>{
+      insertAtCursor(tplText, btn.dataset.token || '');
+    };
+  });
+
+  // ==========================
+  // Start
+  // ==========================
+  await loadTemplate();     // ✅ テンプレ取得
+  await loadEventList();    // ✅ イベント取得
+  setStatus('イベントを選択してください。', false);
+};
 </script>
-
-
-
