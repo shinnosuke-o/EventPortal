@@ -1,6 +1,6 @@
 ﻿<section class="card">
-  <h1>案内テンプレ作成</h1>
-  <p>イベント情報を元に案内文を自動生成します。</p>
+  <h1>アナウンス文作成</h1>
+  <p>イベント情報を元にアナウンス文を作成します。</p>
   <div class="notice" id="nt_status">イベントを選択してください。</div>
 </section>
 
@@ -22,8 +22,8 @@
   </div>
 
   <div class="field" style="margin-top:14px;">
-    <div class="label">案内文（生成結果）</div>
-    <textarea id="nt_text" rows="16" placeholder="イベントを選択するとここに案内文が表示されます。"></textarea>
+    <div class="label">アナウンス文（作成結果）</div>
+    <textarea id="nt_text" rows="16" placeholder="イベントを選択するとここにアナウンス文が表示されます。"></textarea>
 
     <div class="btn-row" style="margin-top:10px;">
       <div style="flex:1 1 auto;"></div>
@@ -63,7 +63,7 @@
     </div>
 
     <div class="field">
-      <div class="label">案内テンプレート（保存されます）</div>
+      <div class="label">テンプレート</div>
       <textarea id="nt_tpl" rows="16"></textarea>
     </div>
 
@@ -260,8 +260,8 @@ window.noticeTemplateInit = async function noticeTemplateInit() {
       return;
     }
 
-    setStatus('案内文を作成中...', true);
-    App.busy?.show('案内文を作成しています。\nしばらくお待ちください。', { title: '作成中...' });
+    setStatus('アナウンス文を作成中...', true);
+    App.busy?.show('アナウンス文を作成しています。\nしばらくお待ちください。', { title: '作成中...' });
 
     try{
       const res = await App.callWithTimeout('api_getGuideEvent', { eventName: name }, 15000, 'イベント取得');
@@ -272,7 +272,7 @@ window.noticeTemplateInit = async function noticeTemplateInit() {
       if (!d || !d.eventName) throw new Error('イベント情報が取得できませんでした（空）。');
 
       txt.value = applyTemplate(d, currentTemplate);
-      setStatus('案内文を作成しました。', false);
+      setStatus('アナウンス文を作成しました。', false);
     } catch(e){
       console.error(e);
       setStatus('作成に失敗しました：' + (e.message || e), false);
