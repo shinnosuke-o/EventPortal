@@ -32,15 +32,12 @@
   </div>
 </section>
 
-<!-- ✅ テンプレート編集（新規） -->
-<section class="card">
-  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-    <h2 style="margin:0;">テンプレート編集</h2>
-    <div style="flex:1 1 auto;"></div>
-    <button id="nt_tplToggle" class="btn secondary" type="button">開く</button>
-  </div>
-
-  <div id="nt_tplArea" style="display:none; margin-top:12px;">
+<!-- ✅ テンプレート編集（カード自体がAccordion） -->
+<details id="nt_tplAccordion" class="card accordion-card">
+  <summary class="accordion-card__summary">
+    <h2 class="accordion-card__title">テンプレート編集</h2>
+  </summary>
+  <div class="accordion-card__body">
     <div style="
       display:flex;
       flex-wrap:wrap;
@@ -72,7 +69,8 @@
       <button id="nt_tplSave" class="btn btn-primary" type="button">保存</button>
     </div>
   </div>
-</section>
+</details>
+
 
 <script>
 window.noticeTemplateInit = async function noticeTemplateInit() {
@@ -86,8 +84,7 @@ window.noticeTemplateInit = async function noticeTemplateInit() {
   const reloadBtn = $('#nt_reloadBtn');
   const copyBtn = $('#nt_copyBtn');
 
-  const tplToggle = $('#nt_tplToggle');
-  const tplArea   = $('#nt_tplArea');
+  const tplAccordion = $('#nt_tplAccordion');
   const tplText   = $('#nt_tpl');
   const tplSave   = $('#nt_tplSave');
   const tplReset  = $('#nt_tplReset');
@@ -308,17 +305,6 @@ window.noticeTemplateInit = async function noticeTemplateInit() {
       console.error(e);
       App.modal?.error('コピーに失敗しました');
     }
-  }
-
-  // ==========================
-  // Template UI events
-  // ==========================
-  if (tplToggle){
-    tplToggle.onclick = ()=>{
-      const open = (tplArea.style.display !== 'none');
-      tplArea.style.display = open ? 'none' : '';
-      tplToggle.textContent = open ? '開く' : '閉じる';
-    };
   }
 
   if (tplSave){
