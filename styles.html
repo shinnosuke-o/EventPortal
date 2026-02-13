@@ -1180,4 +1180,22 @@
     opacity: 1;
   }
 
+  /* ===============================
+    Task: 操作カード（絞り込み/表示切替/追加/修正）をsticky化
+    - 下へスクロール: top=var(--header-h) で張り付く
+    - 上へスクロール: 元の位置に戻ったら自然に解除
+  ================================ */
+  .tk-opsbar{
+    position: -webkit-sticky; /* iOS/Safari対策 */
+    position: sticky;
+    top: var(--header-h);
+    z-index: 10025; /* header(10030)より下、コンテンツより上に */
+  }
+
+  /* 固定中に下の内容が透けるのが気になる場合だけ（任意） */
+  .tk-opsbar{
+    background: rgba(18,26,39,.92);   /* cardと同系統 */
+    backdrop-filter: blur(var(--blur-sm));
+  }
+
 </style>
